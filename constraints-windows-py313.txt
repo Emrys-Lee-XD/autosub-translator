@@ -34,7 +34,7 @@ idna==3.20
 numpy==2.5.3
 onnxruntime==1.30.0
 packaging==26.3
-proto-plus==1.28.2
+proto-plus==1.28.4
 protobuf==5.29.6
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
