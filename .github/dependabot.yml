@@ -4,7 +4,30 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 1
+    # This filter applies only to version updates; security updates remain eligible.
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      python-maintenance:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
+    groups:
+      actions-maintenance:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
