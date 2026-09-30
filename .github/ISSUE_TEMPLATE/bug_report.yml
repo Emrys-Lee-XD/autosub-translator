@@ -1,0 +1,25 @@
+name: 问题反馈
+description: 提供可复现的错误和环境信息
+body:
+  - type: markdown
+    attributes:
+      value: 请勿上传 API Key、Cloud 凭据、私人媒体或未经脱敏的日志。
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境与版本
+      description: Windows、Python、Autosub 版本，CPU/GPU，任务入口和所选模型。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤、预期结果与实际结果
+      description: 优先使用公开示例或人工 SRT。
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: 脱敏错误信息
+      description: 去掉 Key、项目标识、用户名、私人路径和素材内容。

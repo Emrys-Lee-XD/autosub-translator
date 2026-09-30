@@ -1,0 +1,8 @@
+1
+00:00:00,000 --> 00:00:02,000
+Hello. This is a subtitle translation test.
+
+2
+00:00:02,000 --> 00:00:04,000
+You can choose the source and target languages.
+

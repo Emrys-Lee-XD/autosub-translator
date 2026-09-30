@@ -1,0 +1,12 @@
+* text=auto
+*.py text eol=lf
+*.pyw text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.example text eol=lf
+*.srt text eol=lf
+*.bat text eol=crlf
+*.png binary
+*.wav binary
