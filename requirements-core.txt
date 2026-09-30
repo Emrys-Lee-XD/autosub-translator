@@ -1,2 +1,2 @@
 google-genai>=1.60,<2
-protobuf>=5.26.1,<6
+protobuf>=7.36.2,<8
