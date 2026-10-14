@@ -1,6 +1,18 @@
 # 依赖维护记录
 
-日期：2026-09-30。首发后 Dependabot 创建了 7 个普通升级 PR。
+## 2026-10-14：PR #10 协同迁移
+
+PR #10 的四项 Google 依赖升级均要求 `protobuf>=6.33.5`，不能与首发锁定的 Protobuf 5 共用。此次人工安排迁移，将核心依赖范围改为 `protobuf>=6.33.5,<7`，并锁定 `protobuf==6.33.6`；Protobuf 7 仍需另行验收。新增的传递依赖 `opentelemetry-api` 同步锁定到完整安装验证使用的 1.45.1。
+
+保留 `pydantic==2.13.5` 与它要求的 `pydantic-core==2.46.5` 配对，撤销独立升级 core 到 2.49.0 的提议。仅存在 Windows/Python 3.13 wheel，并不能证明 core 与上层 Pydantic 版本兼容。
+
+验证包括完整锁定依赖安装、`pip check`、全部现有测试，以及仓库要求的 Windows/Python 3.12、3.13 常规检查和 Windows/Python 3.13 锁定检查。Gemini 的请求配置、默认模型与 `thinking_level` 保持现有测试覆盖；这些检查不调用付费云端 API，也不验证真实项目的云端权限。
+
+上游依据：[Pydantic 2.13.5 精确 core 依赖](https://github.com/pydantic/pydantic/blob/v2.13.5/pyproject.toml)、[grpcio-status 1.84.0 的 Protobuf 要求](https://github.com/grpc/grpc/blob/v1.84.0/src/python/grpcio_status/setup.py)、[Google API Core 变更记录](https://googleapis.dev/python/google-api-core/latest/CHANGELOG.html)。
+
+## 2026-09-30：首发后的维护记录
+
+首发后 Dependabot 创建了 7 个普通升级 PR。
 
 ## 检查结果
 
