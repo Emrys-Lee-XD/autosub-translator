@@ -21,7 +21,7 @@ from model_config import DEFAULT_MODEL, DEFAULT_LOCATION
 from language_config import language_tag, output_path, source_path, SPEECH_CODES
 from version import __version__
 from translation_config import (PROVIDERS, RESPONSE_FORMATS, CUSTOM_KEY_ENV, TranslationConfig,
-                                credential_environment, redact)
+                                configure_stdio, credential_environment, redact)
 
 class Log:
     RESET = "\033[0m"
@@ -583,6 +583,7 @@ def non_negative_float(value: str) -> float:
     return parsed
 
 def main():
+    configure_stdio()
     from gui_support import DEFAULTS as CONFIG_DEFAULTS, SETTINGS_PATH, load_settings
     config_arg = argparse.ArgumentParser(add_help=False)
     config_arg.add_argument("--version", action="version", version=__version__)

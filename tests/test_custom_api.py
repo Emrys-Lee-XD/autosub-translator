@@ -280,7 +280,7 @@ class TranslationWorkflowTests(unittest.TestCase):
             source = Path(tmp) / "source.srt"
             source.write_text(SRT, encoding="utf-8")
             for api in (first, first, second):
-                run = subprocess.run(self.command(api, source), cwd=ROOT, capture_output=True, text=True, timeout=20)
+                run = subprocess.run(self.command(api, source), cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=20)
                 self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
             self.assertEqual(len(first.requests), 1)
             self.assertEqual(len(second.requests), 1)
@@ -352,7 +352,7 @@ class TranslationWorkflowTests(unittest.TestCase):
             self.assertNotIn("--project=", cmd)
             self.assertIn("--translation_provider=openai_compatible", cmd)
             self.assertNotIn("custom-secret", " ".join(cmd))
-            run = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, timeout=20)
+            run = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
             self.assertEqual(api.requests[0][1]["Authorization"], "Bearer custom-secret")
 
@@ -367,7 +367,7 @@ class TranslationWorkflowTests(unittest.TestCase):
                 "api_key": "saved-gemini-key", "model": "local-model", "sleep": "0"}, config)
             env = {**os.environ, "VENDOR_TOKEN": "", "GEMINI_API_KEY": "inherited-gemini-key"}
             run = subprocess.run([sys.executable, str(ROOT / "main.py"), "--config", str(config)],
-                                 cwd=ROOT, env=env, capture_output=True, text=True, timeout=20)
+                                 cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
             self.assertEqual(api.requests[0][1]["Authorization"], "Bearer saved-custom-key")
             self.assertNotIn("saved-custom-key", run.stdout + run.stderr)
@@ -380,7 +380,7 @@ class TranslationWorkflowTests(unittest.TestCase):
             source = Path(tmp) / "source.srt"
             source.write_text(SRT + "\n2\n00:00:02,000 --> 00:00:03,000\nSecond line\n", encoding="utf-8")
             run = subprocess.run(self.command(api, source, "--retries", "1"), cwd=ROOT,
-                                 capture_output=True, text=True, timeout=20)
+                                 capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
             self.assertEqual(len(api.requests), 3)
             self.assertEqual(len(read_srt(source.with_name("source.zh-CN.bilingual.srt"))), 2)
@@ -392,7 +392,7 @@ class TranslationWorkflowTests(unittest.TestCase):
             cmd = self.command(api, source)
             index = cmd.index("--model")
             del cmd[index:index + 2]
-            run = subprocess.run(cmd + ["--dry_run"], cwd=ROOT, capture_output=True, text=True, timeout=20)
+            run = subprocess.run(cmd + ["--dry_run"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertNotEqual(run.returncode, 0)
             self.assertEqual(api.requests, [])
 
@@ -417,8 +417,19 @@ translate.main(sys.argv[1:])
         with LocalAPI() as api:
             cmd = [sys.executable, "-c", script, "--test_connection", "--translation_provider", "openai_compatible",
                    "--api_base_url", api.url, "--model", "local-model"]
-            run = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=20)
+            run = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+
+    def test_cli_translates_with_non_utf8_inherited_console_encoding(self):
+        with tempfile.TemporaryDirectory() as tmp, LocalAPI() as api:
+            source = Path(tmp) / "source.srt"
+            source.write_text(SRT, encoding="utf-8")
+            env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+            run = subprocess.run(self.command(api, source), cwd=ROOT, env=env,
+                                 capture_output=True, text=True, encoding="utf-8", timeout=20)
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+            self.assertIn("OpenAI 兼容 API", run.stdout)
+            self.assertEqual(len(api.requests), 1)
 
 
 if __name__ == "__main__":

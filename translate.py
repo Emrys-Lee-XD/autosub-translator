@@ -7,7 +7,7 @@ import sys
 from language_config import language_tag
 from srt_utils import read_srt
 from translation_config import (CUSTOM_KEY_ENV, PROVIDERS, RESPONSE_FORMATS,
-                                TranslationConfig, credential_environment)
+                                TranslationConfig, configure_stdio, credential_environment)
 from translation_core import (non_negative_float, positive_int, retry_translation,
                               run_translation, save_checkpoint, short_error)
 from translation_providers import create_provider
@@ -21,6 +21,7 @@ def positive_float(value):
 
 
 def main(argv=None, *, gemini_batch=None, checkpoint_saver=save_checkpoint):
+    configure_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--in", dest="inp")
     parser.add_argument("--out")

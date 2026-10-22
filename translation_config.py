@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 import os
 import re
+import sys
 from urllib.parse import urlsplit, urlunsplit
 
 from model_config import DEFAULT_MODEL, DEFAULT_LOCATION
@@ -9,6 +10,15 @@ from model_config import DEFAULT_MODEL, DEFAULT_LOCATION
 PROVIDERS = ("gemini", "openai_compatible")
 RESPONSE_FORMATS = ("text", "json_object", "json_schema")
 CUSTOM_KEY_ENV = "AUTOSUB_API_KEY"
+
+
+def configure_stdio():
+    """Keep CLI logs and inherited subprocess pipes readable on Windows."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+    os.environ["PYTHONIOENCODING"] = "utf-8"
 
 
 def normalize_base_url(value):
