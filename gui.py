@@ -26,16 +26,19 @@ class AutosubApp:
         self.closing = False
         self.busy = False
         self.preview = False
+        self.turbo_active = False
+        self.turbo_current_stt = ""
         self.started = 0
         self.last_output_dir = None
         self.last_exit = None
+        self.mode_after = self.poll_after = self.error_after = None
         self.fields = {}
         self.controls = []
         try:
             values = load_settings(settings_path)
         except (OSError, ValueError) as exc:
             values = DEFAULTS.copy()
-            root.after_idle(lambda detail=str(exc): messagebox.showerror("配置读取失败", detail, parent=root))
+            self.error_after = root.after_idle(lambda detail=str(exc): messagebox.showerror("配置读取失败", detail, parent=root))
         self.vars = {k: (tk.BooleanVar(root, value=v) if isinstance(v, bool) else tk.StringVar(root, value=v))
                      for k, v in values.items()}
         self._active_provider = values["translation_provider"]
@@ -44,16 +47,39 @@ class AutosubApp:
         self.detail = tk.StringVar(root, value="选择视频后，可先预演处理流程。")
         self.counter = tk.StringVar(root, value="0 / 0 个视频")
         self.elapsed = tk.StringVar(root, value="尚未开始")
+        self.stage_vars = {name: tk.StringVar(root, value="等待任务") for name in ("extract", "stt", "translate")}
         root.title(f"Autosub · 多语言字幕工作台 {__version__}")
         root.geometry(f"1080x{min(960, max(800, root.winfo_screenheight() - 100))}")
         root.minsize(1000, 800)
         root.configure(bg="#eff3f8")
         root.option_add("*Font", ("Microsoft YaHei UI", 10))
         root.protocol("WM_DELETE_WINDOW", self.close)
+        root.bind("<Destroy>", self._on_destroy, add="+")
         self._build()
-        self.vars["input"].trace_add("write", lambda *_: self.root.after_idle(self._mode_changed))
+        root.update_idletasks()
+        # Respect Windows text scaling and leave room for the new stage cards.
+        width = min(root.winfo_screenwidth() - 80, max(1080, root.winfo_reqwidth()))
+        height = min(root.winfo_screenheight() - 100, max(800, root.winfo_reqheight()))
+        root.geometry(f"{width}x{height}")
+        self.vars["input"].trace_add("write", self._schedule_mode)
         self._mode_changed()
-        self.root.after(100, self._poll)
+        self.poll_after = self.root.after(100, self._poll)
+
+    def _schedule_mode(self, *_):
+        if self.mode_after:
+            self.root.after_cancel(self.mode_after)
+        def update():
+            self.mode_after = None
+            self._mode_changed()
+        self.mode_after = self.root.after_idle(update)
+
+    def _on_destroy(self, event):
+        if event.widget is self.root:
+            for name in ("mode_after", "poll_after", "error_after"):
+                token = getattr(self, name)
+                if token:
+                    self.root.after_cancel(token)
+                    setattr(self, name, None)
 
     def _build(self):
         style = ttk.Style(self.root)
@@ -67,6 +93,8 @@ class AutosubApp:
         style.configure("TEntry", padding=6)
         style.configure("TCombobox", padding=5)
         style.configure("TCheckbutton", font=("Microsoft YaHei UI", 10), background="#eff3f8")
+        style.configure("TLabelframe", background="#eff3f8")
+        style.configure("TLabelframe.Label", font=("Microsoft YaHei UI", 10, "bold"), background="#eff3f8", foreground="#24344b")
         style.configure("TNotebook", background="#eff3f8", borderwidth=0)
         style.configure("TNotebook.Tab", padding=(20, 8), font=("Microsoft YaHei UI", 10))
         style.map("TNotebook.Tab",
@@ -115,7 +143,10 @@ class AutosubApp:
         self._field(basic, 1, 2, "字幕格式", "output_mode", {"bilingual": "双语", "translated": "仅译文"})
         self._field(basic, 2, 0, "语音识别", "stt_mode", {"local": "本地 Whisper", "cloud": "Google 云端"})
         self._field(basic, 2, 2, "已有字幕", "existing", {"reuse": "保留并续跑", "force": "备份后重做", "retry_no_text": "重试无文字视频"})
-        ttk.Label(basic, text="在“翻译 API”填写地址和 Key，在高级参数填写翻译模型；可先预演流程。", style="Muted.TLabel").grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 2))
+        self.turbo_check = ttk.Checkbutton(basic, text="Turbo：模型常驻 · 连续识别", variable=self.vars["turbo"], command=self._mode_changed)
+        self.turbo_check.grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 2))
+        self.controls.append(self.turbo_check)
+        ttk.Label(basic, text="在“翻译 API”填写地址和 Key，在高级参数填写翻译模型；可先预演流程。", style="Muted.TLabel").grid(row=4, column=0, columnspan=4, sticky="w", pady=(6, 2))
         self._field(api, 0, 0, "Gemini API Key", "api_key", secret=True)
         self._field(api, 0, 2, "自定义 API Key", "custom_api_key", secret=True)
         self._field(api, 1, 0, "API 基础地址", "api_base_url")
@@ -150,6 +181,7 @@ class AutosubApp:
         for i, (label, key) in enumerate(fields):
             self._field(advanced, 4 + i // 3, (i % 3) * 2, label, key)
         self._field(advanced, 7, 2, "字幕过滤", "hallucination_filter", {"conservative": "保守", "off": "关闭", "aggressive": "较强"})
+        self._field(advanced, 7, 0, "音频预取 / 1～4", "audio_prefetch")
         self._field(advanced, 7, 4, "识别提示", "initial_prompt")
         for widget in advanced.winfo_children():
             if isinstance(widget, (ttk.Entry, ttk.Combobox)):
@@ -177,6 +209,13 @@ class AutosubApp:
         self.bar = ttk.Progressbar(body, maximum=1, value=0)
         self.bar.pack(fill="x")
         ttk.Label(body, textvariable=self.counter, style="Muted.TLabel").pack(anchor="e", pady=(2, 6))
+        cards = ttk.Frame(body)
+        cards.pack(fill="x", pady=(0, 6))
+        for column, (name, title) in enumerate((("extract", "提取音频"), ("stt", "语音识别"), ("translate", "AI 翻译"))):
+            cards.columnconfigure(column, weight=1, uniform="stage")
+            card = ttk.LabelFrame(cards, text=title, padding=(8, 5))
+            card.grid(row=0, column=column, sticky="nsew", padx=(0, 6) if column < 2 else 0)
+            ttk.Label(card, textvariable=self.stage_vars[name], wraplength=290).pack(fill="x")
         log_head = ttk.Frame(body)
         log_head.pack(fill="x")
         ttk.Label(log_head, text="03  运行记录", font=("Microsoft YaHei UI", 11, "bold")).pack(side="left")
@@ -228,6 +267,11 @@ class AutosubApp:
             self._active_provider = provider
         gemini = provider == "gemini"
         vertex = gemini and self.vars["gemini_backend"].get() == "vertex"
+        if cloud:
+            self.vars["turbo"].set(False)
+        self.turbo_check.configure(state="disabled" if cloud else "normal")
+        self.fields["audio_prefetch"].configure(state="normal" if self.vars["turbo"].get() and not srt else "disabled")
+        self.stop_button.configure(text="安全停止" if self.vars["turbo"].get() else "完成当前视频后停止")
         self.fields["bucket"].configure(state="normal" if cloud else "disabled")
         self.fields["project"].configure(state="normal" if cloud or vertex else "disabled")
         self.fields["credentials"].configure(state="normal" if cloud or vertex else "disabled")
@@ -302,6 +346,10 @@ class AutosubApp:
             messagebox.showerror("请检查设置", str(exc), parent=self.root)
             return
         self.preview = preview
+        self.turbo_active = bool(values["turbo"]) and not preview
+        self.turbo_current_stt = ""
+        for variable in self.stage_vars.values():
+            variable.set("等待任务")
         source = Path(command[3])
         self.last_output_dir = source if source.is_dir() else source.parent
         self.started = time.monotonic()
@@ -324,15 +372,16 @@ class AutosubApp:
             return
         try:
             self.runner.request_stop()
-            self.status.set("等待当前视频完成后停止")
+            self.status.set("等待正在执行的阶段完成后停止" if self.turbo_active else "等待当前视频完成后停止")
             self.stop_button.configure(state="disabled")
-            self._log("已请求停止：当前视频会继续完成，之后不再开始新视频。")
+            self._log("已请求安全停止：正在执行的阶段完成后保存，下次继续排队任务。" if self.turbo_active else "已请求停止：当前视频会继续完成，之后不再开始新视频。")
         except OSError as exc:
             messagebox.showerror("停止请求失败", str(exc), parent=self.root)
 
     def close(self):
         if self.busy:
-            if messagebox.askyesno("任务仍在运行", "是否在当前视频完成后停止并关闭窗口？", parent=self.root):
+            prompt = "是否在当前提取、识别和翻译阶段完成后停止并关闭窗口？" if self.turbo_active else "是否在当前视频完成后停止并关闭窗口？"
+            if messagebox.askyesno("任务仍在运行", prompt, parent=self.root):
                 self.closing = True
                 self.stop()
             return
@@ -371,6 +420,7 @@ class AutosubApp:
     def _progress(self, data):
         event = data.get("event")
         if event == "batch_start":
+            self.turbo_active = bool(data.get("turbo"))
             self.bar.configure(maximum=max(data["total"], 1))
             self.counter.set(f"0 / {data['total']} 个视频")
         elif event == "video_start":
@@ -378,6 +428,30 @@ class AutosubApp:
         elif event in ("video_done", "batch_done"):
             self.bar.configure(value=data["completed"])
             self.counter.set(f"{data['completed']} / {data['total']} 个视频  ·  失败 {data['failed']}")
+            if data.get("turbo"):
+                self.counter.set(f"已结束 {data['completed']} / {data['total']}  ·  失败 {data['failed']}  ·  待续跑 {data.get('unfinished', 0)}")
+                self.detail.set("已停止 · 再次开始可从已完成阶段继续。" if data.get("stopped") else "本批次已结束 · 结果与状态保存在素材目录。")
+                for name in self.stage_vars:
+                    self.stage_vars[name].set("已停止" if data.get("stopped") else "本批次已结束")
+        elif event == "turbo_status":
+            self.bar.configure(value=data["completed"])
+            self.detail.set(f"音频预取 {data.get('audio_ahead', 0)} 个 · 原文落盘后即可续跑，翻译可以稍后完成。")
+            self.counter.set(f"最终完成 {data['finished']} / {data['total']}  ·  本次识别 {data['recognized']}  ·  待翻译 {data['pending_translation']}  ·  无文字 {data['no_text']}  ·  失败 {data['failed']}")
+            stages = data["stages"]
+            self.turbo_current_stt = stages["stt"]
+            for name in self.stage_vars:
+                self.stage_vars[name].set(Path(stages[name]).name if stages[name] else "等待任务")
+            if data.get("extract_paused"):
+                self.stage_vars["extract"].set("磁盘空间不足 · 已暂停")
+            if data.get("stt_paused"):
+                self.stage_vars["stt"].set("识别已暂停 · 查看日志")
+            elif not stages["stt"]:
+                self.stage_vars["stt"].set({"loading": "正在加载模型", "resident": "模型常驻 · 等待音频", "released": "模型已释放"}[data["model"]])
+            if data.get("translation_paused"):
+                self.stage_vars["translate"].set("翻译已暂停 · 识别继续")
+            self.status.set("安全停止中 · 等待当前阶段" if data.get("stopping") else "Turbo · 识别与翻译并行")
+        elif event == "turbo_stt_progress" and data.get("video") == self.turbo_current_stt:
+            self.stage_vars["stt"].set(f"{Path(data['video']).name}\n{data.get('seconds', 0):.0f} / {data.get('duration', 0):.0f} 秒")
 
     def _log(self, text):
         self.log.configure(state="normal")
@@ -399,7 +473,7 @@ class AutosubApp:
                 if data:
                     self._log(data)
                 stage = re.search(r"Step ([1-4])/4", data)
-                if stage and self.stop_button.instate(["!disabled"]):
+                if stage and not self.turbo_active and self.stop_button.instate(["!disabled"]):
                     names = {"1": "提取音频", "2": "语音识别", "3": "翻译字幕", "4": "保存结果"}
                     self.status.set(("预演 · " if self.preview else "正在") + names[stage.group(1)])
             elif kind == "progress":
@@ -428,7 +502,7 @@ class AutosubApp:
         if self.busy:
             seconds = int(time.monotonic() - self.started)
             self.elapsed.set(f"已运行 {seconds // 60:02d}:{seconds % 60:02d}")
-        self.root.after(100, self._poll)
+        self.poll_after = self.root.after(100, self._poll)
 
     def open_output(self):
         folder = self.last_output_dir

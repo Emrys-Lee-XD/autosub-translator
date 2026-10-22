@@ -32,6 +32,23 @@ def short_error(error):
     return redact(str(error).replace("\n", " ").strip())[:800] or type(error).__name__
 
 
+def report_error(error):
+    """Preserve API status across translator subprocesses and wrapped retries."""
+    cause, code, seen = error, None, set()
+    while cause is not None and id(cause) not in seen:
+        seen.add(id(cause))
+        status = getattr(cause, "code", None) or getattr(cause, "status_code", None)
+        try:
+            if status is not None:
+                code = int(status)
+        except (TypeError, ValueError):
+            pass
+        cause = cause.__cause__
+    print("__AUTOSUB_TRANSLATION_ERROR__" + json.dumps({"code": code}),
+          file=sys.stderr, flush=True)
+    print(f"Translation failed: {short_error(error)}", file=sys.stderr)
+
+
 def clean_json_markdown(text):
     text = text.strip()
     if text.startswith("```"):

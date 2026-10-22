@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +24,14 @@ from srt_utils import read_srt
 
 
 SRT = "1\n00:00:00,000 --> 00:00:01,000\nHello world\n"
+
+
+def fixture_audio(path):
+    with wave.open(str(path), "wb") as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(b"\0\0" * 16000)
 
 
 def options(**overrides):
@@ -192,7 +201,7 @@ class MultilingualTests(unittest.TestCase):
 
             def fake_run(cmd, **_):
                 if cmd[1] == "ffmpeg_only.py":
-                    (Path(cmd[cmd.index("--out_dir") + 1]) / "movie.stt.wav").write_bytes(b"wav")
+                    fixture_audio(Path(cmd[cmd.index("--out_dir") + 1]) / "movie.stt.wav")
                 elif cmd[1] == "sub.py":
                     Path(cmd[cmd.index("--out") + 1]).write_text(SRT, encoding="utf-8")
                 else:

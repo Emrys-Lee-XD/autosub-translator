@@ -28,7 +28,7 @@ DEFAULTS = dict(input="", project="", model=DEFAULT_MODEL, api_key="",
     location=DEFAULT_LOCATION, bucket="", credentials="", batch="20", sleep="1", retries="3",
     translate_timeout_minutes="10", stt_timeout_hours="3", local_stt_timeout_minutes="0",
     hallucination_filter="off", dedupe_window_seconds="0.1", initial_prompt="",
-    existing="reuse", keep_workspace=False)
+    existing="reuse", keep_workspace=False, turbo=False, audio_prefetch="2")
 CHOICES = dict(stt_mode=("local", "cloud"), device=("auto", "cuda", "cpu"),
     translation_provider=PROVIDERS, response_format=RESPONSE_FORMATS,
     hallucination_filter=("off", "conservative", "aggressive"), existing=("reuse", "force", "retry_no_text"),
@@ -36,6 +36,7 @@ CHOICES = dict(stt_mode=("local", "cloud"), device=("auto", "cuda", "cpu"),
     target_language=tuple(LANGUAGES), output_mode=("bilingual", "translated"))
 NUMBERS = {"batch": (int, 1, "每批翻译条数"), "sleep": (float, 0, "请求间隔"),
     "request_timeout_seconds": (float, 0.001, "单次 API 超时"),
+    "audio_prefetch": (int, 1, "音频预取数量"),
     "retries": (int, 1, "重试次数"), "translate_timeout_minutes": (int, 1, "翻译超时"),
     "stt_timeout_hours": (float, 0.000001, "云端识别超时"),
     "local_stt_timeout_minutes": (int, 0, "本地识别超时"),
@@ -127,6 +128,10 @@ def build_command(values, dry_run=False):
     if values["stt_mode"] == "cloud" and not is_srt and values["source_language"] == "auto" and not values["cloud_language_code"].strip():
         raise ValueError("云端识别选自动语言时，请填写语音识别语言代码。")
     active_numbers = {"batch", "sleep", "retries", "translate_timeout_minutes", "request_timeout_seconds"}
+    if values["turbo"]:
+        active_numbers.add("audio_prefetch")
+        if not is_srt and values["stt_mode"] == "cloud":
+            raise ValueError("Turbo 需要本地 Whisper；云端识别请关闭 Turbo。")
     if not is_srt:
         active_numbers |= ({"local_stt_timeout_minutes", "dedupe_window_seconds"}
                            if values["stt_mode"] == "local" else {"stt_timeout_hours"})
@@ -138,6 +143,8 @@ def build_command(values, dry_run=False):
             raise ValueError(f"{label}需要有效数值。") from None
         if not math.isfinite(parsed) or parsed < minimum:
             raise ValueError(f"{label}必须为有限数值，且不小于 {minimum:g}。")
+        if name == "audio_prefetch" and parsed > 4:
+            raise ValueError("音频预取数量须为 1～4。")
     credential = values["credentials"].strip().strip('"')
     if credential and (values["stt_mode"] == "cloud" and not is_srt or config.vertex) and not Path(credential).expanduser().is_file():
         raise ValueError("所选凭据文件不存在。留空可使用系统已有凭据。")
@@ -169,6 +176,7 @@ def build_command(values, dry_run=False):
         cmd.append("--" + values["existing"])
     if values["keep_workspace"]:
         cmd.append("--keep_workspace")
+    cmd.append("--turbo" if values["turbo"] else "--no_turbo")
     if dry_run:
         cmd.append("--dry_run")
     env = credential_environment(config, values, override=True)
@@ -253,12 +261,13 @@ class ProcessRunner:
                 self._stop_file.touch(exist_ok=True)
 
     def _work(self, command, env):
+        from process_utils import OwnedProcess
         code = 1
+        owned = None
         try:
-            flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-            with subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-                                  errors="replace", bufsize=1, creationflags=flags) as process:
+            owned = OwnedProcess(command, ROOT, env=env)
+            process = owned.process
+            if process.stdout:
                 for line in process.stdout:
                     line = ANSI.sub("", line).rstrip("\r\n")
                     line = redact(line, env)
@@ -276,6 +285,11 @@ class ProcessRunner:
         except Exception as exc:
             self.events.put(("log", f"启动或读取任务失败：{exc}"))
         finally:
+            if owned:
+                try:
+                    owned.close()
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    self.events.put(("log", f"任务进程清理失败：{exc}"))
             with self._guard:
                 try:
                     self._stop_file.unlink(missing_ok=True)

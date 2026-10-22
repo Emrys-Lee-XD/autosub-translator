@@ -31,5 +31,7 @@
   "dedupe_window_seconds": "0.1",
   "initial_prompt": "",
   "existing": "reuse",
-  "keep_workspace": false
+  "keep_workspace": false,
+  "turbo": false,
+  "audio_prefetch": "2"
 }
