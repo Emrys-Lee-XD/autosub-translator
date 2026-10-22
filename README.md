@@ -2,7 +2,7 @@
 
 将视频转写成字幕，再使用 Gemini 或自定义 OpenAI 兼容 API 翻译；也可以直接翻译已有 SRT。提供中文桌面界面、命令行、源/目标语言选择、双语或纯译文输出、断点恢复和批量处理。
 
-当前版本：**0.2.0-beta.1**，Windows 源码测试版。项目使用 AI 辅助开发，测试范围见 [验证记录](docs/VALIDATION.md)。
+当前版本：**0.2.0-beta.2**，Windows 源码测试版。项目使用 AI 辅助开发，测试范围见 [验证记录](docs/VALIDATION.md)。
 
 ## 安装与启动
 
@@ -19,6 +19,8 @@ Copy-Item config.json.example config.json
 复制配置只需做一次；已有个人配置时直接编辑它。安装系统 FFmpeg，并确认 `ffmpeg -version`、`ffprobe -version` 可运行。本项目使用外部 FFmpeg 提取视频音频。
 
 双击 `start_gui.bat`，选择翻译服务、素材与语言。在“翻译 API”填写对应服务的 Key 和地址，在高级参数填写翻译模型。Gemini 默认使用 Google AI Studio。点击“保存配置”记住设置；“预演”只检查处理流程，“开始生成”执行任务。“测试翻译”会发送一段固定公开文本，产生一次真实 API 请求。源语言默认自动识别，目标语言默认简体中文。
+
+批量本地识别可勾选 **Turbo**：同一模型连续识别，音频提取、识别与翻译分别推进。音频预取默认 2，可设为 1～4；公开配置默认关闭，Cloud Speech 使用普通模式。配置和恢复规则见 [Turbo 指南](docs/TURBO.md)。
 
 首次本地识别会下载 Whisper 模型。没有显卡或希望先快速试用时，可选 CPU、`tiny` 模型、`int8` 精度；更大模型需要更多时间和内存。
 
@@ -54,7 +56,7 @@ CLI 默认读取项目目录的 `config.json`；`--config other.json` 指定另�
 .\autosub.bat "examples\hello.en.srt" --source_language en --target_language zh-CN --dry_run
 .\autosub.bat "examples\hello.en.srt" --source_language en --target_language it --output_mode translated
 .\autosub.bat "D:\Videos\sample.mp4" --source_language auto --target_language en
-.\autosub.bat "D:\Videos" --source_language ja --target_language zh-CN
+.\autosub.bat "D:\Videos" --source_language ja --target_language zh-CN --turbo --audio_prefetch 2
 ```
 
 文件夹入口递归处理视频；已有字幕用单个 SRT 入口翻译。公开示例和生成短测试视频的方法见 [examples](examples/README.md)。
@@ -70,7 +72,7 @@ CLI 默认读取项目目录的 `config.json`；`--config other.json` 指定另�
 
 翻译缓存包含服务协议、API 地址、模型和响应格式；切换服务不会误用旧译文。此次更新升级了翻译身份标识，旧译文和检查点不直接复用；已核验原文仍可复用，已知旧成品会备份后重新翻译。
 
-翻译失败会保留可续跑的原文和检查点；重新运行同一任务即可继续。“重试无文字视频”用于重新识别此前没有文本的素材。停止按钮等待当前素材完成后停止。`--no_progress_log` 只关闭日志，保留恢复状态。
+翻译失败会保留可续跑的原文和检查点；重新运行同一任务即可继续。“重试无文字视频”用于重新识别此前没有文本的素材。普通模式的停止按钮等待当前素材完成；Turbo 的安全停止等待正在执行的阶段完成并保存，下次从已完成阶段继续。`--no_progress_log` 只关闭日志，保留恢复状态。
 
 ## 数据与费用
 

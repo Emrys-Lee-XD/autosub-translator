@@ -74,3 +74,7 @@ Gemini 测试读取 `GEMINI_API_KEY` / `GOOGLE_API_KEY`。测试模式只请求�
 更换地址或协议后重新翻译，保留可复用的原文；旧成品按已有备份规则处理。旧版本译文与检查点因标识升级不会盲目复用。
 
 新增协议时在 `translation_providers.py` 添加实现 `translate_lines` / `close` 的适配器，并扩展配置校验、身份标识和 GUI 选项。分批、校验、重试、检查点与字幕输出继续由 `translation_core.py` 维护。
+
+## Turbo 批处理
+
+自定义翻译 API 可与本地 Whisper Turbo 同时使用。GUI 勾选 Turbo，或 CLI 添加 `--turbo --audio_prefetch 2`。翻译仍为单路请求，与音频提取和识别分别推进；鉴权、模型或重试耗尽的限流错误会暂停后续翻译，保留原文及检查点。纯 SRT 输入无需识别模型，普通与 Turbo 使用相同翻译参数与缓存身份。

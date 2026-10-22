@@ -210,7 +210,7 @@ class DryRunTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "main.py"),
+                    str(ROOT / "main.py"), "--no_config",
                     str(video),
                     "--bucket", "dry-run-bucket",
                     "--project", "dry-run-project",
@@ -239,7 +239,7 @@ class DryRunTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "main.py"),
+                    str(ROOT / "main.py"), "--no_config",
                     str(video),
                     "--project", "dry-run-project",
                     "--stt_mode", "local",
@@ -259,7 +259,7 @@ class DryRunTests(unittest.TestCase):
 class CliTests(unittest.TestCase):
     def test_profile_switches_are_removed(self):
         result = subprocess.run(
-            [sys.executable, str(ROOT / "main.py"), "--help"],
+            [sys.executable, str(ROOT / "main.py"), "--no_config", "--help"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -277,7 +277,7 @@ class CliTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "main.py"),
+                    str(ROOT / "main.py"), "--no_config",
                     str(video),
                     "--project", "dry-run-project",
                     "--stt_mode", "local",
@@ -296,7 +296,7 @@ class CliTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "main.py"),
+                    str(ROOT / "main.py"), "--no_config",
                     str(video),
                     "--project", "dry-run-project",
                     "--stt_mode", "cloud",

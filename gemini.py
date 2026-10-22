@@ -6,7 +6,7 @@ from srt_utils import read_srt
 from translation_config import TranslationConfig
 from translation_core import (ResponseFormatError, clean_json_markdown, load_checkpoint,
                               non_negative_float, positive_int, retry_translation,
-                              save_checkpoint, short_error, source_sha256,
+                              save_checkpoint, short_error, source_sha256, report_error,
                               write_bilingual_srt, write_translated_srt)
 from translation_providers import GeminiProvider
 
@@ -42,5 +42,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"Translation failed: {short_error(exc)}", file=sys.stderr)
+        report_error(exc)
         sys.exit(1)

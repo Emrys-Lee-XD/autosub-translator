@@ -65,6 +65,38 @@ class GuiSmokeTests(unittest.TestCase):
             finally:
                 root.destroy()
 
+    def test_turbo_config_cloud_switch_and_structured_progress(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = tk.Tk()
+            root.withdraw()
+            try:
+                app = AutosubApp(root, settings_path=Path(tmp) / "config.json")
+                app.vars["turbo"].set(True)
+                app.vars["audio_prefetch"].set("3")
+                app._mode_changed()
+                self.assertEqual(app.stop_button.cget("text"), "安全停止")
+                app.save()
+                app.vars["turbo"].set(False)
+                app.load()
+                self.assertTrue(app.vars["turbo"].get())
+                self.assertEqual(app.vars["audio_prefetch"].get(), "3")
+                app.vars["stt_mode"].set("cloud")
+                app._mode_changed()
+                self.assertFalse(app.vars["turbo"].get())
+                self.assertTrue(app.turbo_check.instate(["disabled"]))
+                app._progress(dict(event="batch_start", turbo=True, total=5))
+                app._progress(dict(event="turbo_status", total=5, completed=1, failed=0,
+                    finished=1, no_text=0, recognized=3, pending_translation=1, model="resident",
+                    stages=dict(extract="2.mp4", stt="3.mp4", translate="1.mp4")))
+                self.assertEqual(app.stage_vars["extract"].get(), "2.mp4")
+                self.assertEqual(app.stage_vars["stt"].get(), "3.mp4")
+                self.assertEqual(app.stage_vars["translate"].get(), "1.mp4")
+                self.assertIn("待翻译 1", app.counter.get())
+                app._progress(dict(event="turbo_stt_progress", video="3.mp4", seconds=20, duration=60))
+                self.assertIn("20 / 60", app.stage_vars["stt"].get())
+            finally:
+                root.destroy()
+
     def test_gui_saves_and_reloads_api_key_and_language(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.json"

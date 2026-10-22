@@ -9,7 +9,7 @@ from srt_utils import read_srt
 from translation_config import (CUSTOM_KEY_ENV, PROVIDERS, RESPONSE_FORMATS,
                                 TranslationConfig, configure_stdio, credential_environment)
 from translation_core import (non_negative_float, positive_int, retry_translation,
-                              run_translation, save_checkpoint, short_error)
+                              run_translation, save_checkpoint, short_error, report_error)
 from translation_providers import create_provider
 
 
@@ -81,5 +81,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
-        print(f"Translation failed: {short_error(exc)}", file=sys.stderr)
+        report_error(exc)
         sys.exit(1)

@@ -1,0 +1,57 @@
+name: Publish source beta
+
+on:
+  workflow_run:
+    workflows: ["Windows tests"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-beta-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Read beta version
+        id: version
+        run: |
+          python - <<'PY'
+          import os, re
+          from version import __version__
+          if not re.fullmatch(r"\d+\.\d+\.\d+-beta\.\d+", __version__):
+              raise SystemExit("Only beta versions are published by this workflow")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"tag=v{__version__}\n")
+          PY
+      - name: Audit and package source
+        run: python scripts/build_source_release.py
+      - name: Publish beta with source archive and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists"
+          else
+            gh release create "$RELEASE_TAG" dist/*-source.zip dist/*.zip.sha256 \
+              --target "$RELEASE_SHA" --title "Autosub $RELEASE_TAG" \
+              --notes-file docs/RELEASE_NOTES.md --prerelease
+          fi

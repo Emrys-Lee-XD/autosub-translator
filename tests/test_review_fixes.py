@@ -16,7 +16,7 @@ import gui_support
 import main
 import pipeline
 from language_config import source_path, stt_identity, translation_identity
-from tests.test_multilang import options, SRT
+from tests.test_multilang import options, SRT, fixture_audio
 from srt_utils import read_srt
 
 
@@ -79,7 +79,7 @@ class ReviewRegressionTests(unittest.TestCase):
             def fake_run(cmd, **_):
                 calls.append(cmd[1])
                 if cmd[1] == "ffmpeg_only.py":
-                    (Path(cmd[cmd.index("--out_dir") + 1]) / "sample.stt.wav").write_bytes(b"wav")
+                    fixture_audio(Path(cmd[cmd.index("--out_dir") + 1]) / "sample.stt.wav")
                 elif cmd[1] == "sub.py":
                     Path(cmd[cmd.index("--out") + 1]).write_text(SRT, encoding="utf-8")
                 elif calls.count("translate.py") == 1:

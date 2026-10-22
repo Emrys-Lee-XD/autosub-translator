@@ -1,6 +1,6 @@
 # 版本发布流程
 
-当前版本：0.2.0-beta.1。源码包名称：`autosub-translator-0.2.0-beta.1-source.zip`。
+当前版本：0.2.0-beta.2。源码包名称：`autosub-translator-0.2.0-beta.2-source.zip`。
 
 ## 检查与打包
 
@@ -23,10 +23,10 @@ git add .
 2. 在当前仓库创建发布分支并提交审核过的源码；确认源码包与该提交逐文件一致。
 3. 推送发布分支，创建指向 `main` 的 PR。主分支要求 PR 合并，不直接推送或绕过保护规则。
 4. 等待 Windows / Python 3.12、3.13 和锁定依赖检查通过，再合并 PR。保持可用的 secret scanning、push protection、Dependabot alerts 和私密漏洞反馈设置。
-5. 核对合并提交与待发布源码一致，为该提交创建 `v0.2.0-beta.1` 标签；使用 `docs/RELEASE_NOTES.md` 创建预发布 Release，附上源码 ZIP 与 SHA-256。
+5. 主分支 push 的 Windows tests 完整通过后，`Publish source beta` 工作流检出该次测试的确切提交，重新审查并打包源码，创建版本标签及预发布 Release，附源码 ZIP 与 SHA-256。已有同名 Release 时跳过，不覆盖。
 6. 从 Release 下载附件，复核 ZIP、SHA-256、逐文件清单及标签对应的 Git 提交。
 
-发布需要用户明确的发布指令。仓库不含自动推送、自动发布 Release 或上传包的脚本；CI 只做检查及本地打包。GitHub API 与附件上传分别需要访问 `api.github.com`、`uploads.github.com`。
+发布工作流仅接受本仓库 main 分支的成功 push 检查，不在 PR 或 fork 上发布；它用最小的 contents 写权限创建 Release。变更版本号的 PR 即为下一版的发布候选，合并前应取得维护者的发布授权。删除或禁用 `.github/workflows/release.yml` 可停用自动发布。
 
 ## 许可证与贡献
 

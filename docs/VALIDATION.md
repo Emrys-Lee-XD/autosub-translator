@@ -67,3 +67,16 @@ CI 将包含 Python 3.12 和 3.13 的 Windows 任务；Python 3.12 远端任务�
 - OpenAI 兼容接口：使用同一 Gemini Key，显式指定 `custom_api_key_env=GEMINI_API_KEY`，通过官方 `https://generativelanguage.googleapis.com/v1beta/openai` 的 Chat Completions 端点和 `text` 响应模式再次翻译上述 2 条字幕。切换接口时正确备份原生成品，译文、时间轴及第二次运行的缓存复用均通过。
 
 上述验收只调用 Gemini 服务。其他供应商、OpenAI 兼容接口的真实 JSON Object / JSON Schema 模式仍以本地 HTTP 集成测试为证据。Windows 自动化测试结果见发布 PR 的 CI 检查；GPU 和实际模型下载不在本次验证范围。
+
+## 2026-10-22：0.2.0-beta.2 Turbo 合并验证
+
+- 在独立目录从当前公开主分支迁入 Turbo，没有修改原 Turbo 的源码、暂存区或个人配置。
+- Windows、Python 3.13.6，新建虚拟环境，按 `requirements-dev.txt` 与 `constraints-windows-py313.txt` 安装；Protobuf 6.33.6、grpcio-status 1.84.0；`pip check` 通过。
+- 合并版完整 **136 项测试通过**（51.812 秒），包括原两套回归及 5 项交叉集成测试。交叉测试通过真实翻译子进程验证自定义 API 三种响应格式、SRT 不加载识别模型、401/403/404/429 暂停翻译而继续模拟 STT、Key 脱敏、Key 轮换、服务切换、模式切换与旧入口错误码；自定义 SRT 路径还验证不导入 Google SDK。
+- 本地 HTTP 测试服务改为 HTTP/1.1，解决 Windows 快速关闭 HTTP/1.0 响应导致的偶发连接重置；未放宽请求次数或错误重试断言。
+- 真实 FFmpeg、RTX 5080（驱动 621.01）、Whisper large-v3 / CUDA float16：3 个公开合成短视频全部生成双语字幕，模型初始化 1 次；每个成品通过条数、原文与时间轴核验，未遗留 WAV。
+- 这组 Turbo 用时 13.34 秒；随后普通模式约 0.18 秒核验并复用全部成品，没有重复请求翻译。另一个独立普通任务实际识别并翻译相同短素材，约 10.31 秒，原文 SRT 与 Turbo 对应结果字节一致。这些时间受已缓存模型和短素材影响，不能直接比较为长视频加速倍数。
+- 上述 GPU 流程的翻译使用本地 HTTP 模拟服务；随后单独以实际 Gemini Key 和配置模型，在普通与 Turbo 模式分别翻译公开 `hello.en.srt` 的 2 条字幕（约 4.85 / 3.60 秒），输出通过源文、条数、时间轴核验。Key 仅经进程环境传递，没有进入源码或命令行。
+- GUI 由真实 Tk 事件循环测试覆盖 API 测试按钮、服务/模型切换、Turbo 控件、Cloud Speech 切换、配置保存及阶段进度。
+
+范围限制：本次真实 GPU 素材均为公开英文合成短视频；未将用户长视频、持续大批量、多语种质量、Cloud Speech、Vertex、其他 GPU 或真实第三方供应商作为已验收结果。发布后远端 Windows CI 和附件核验由发布记录补充。

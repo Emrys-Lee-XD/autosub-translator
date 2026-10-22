@@ -629,6 +629,10 @@ def main():
     ap.add_argument("--sleep", type=non_negative_float, default=1.0)
     ap.add_argument("--translate_timeout_minutes", type=positive_int, default=10)
     ap.add_argument("--dry_run", action="store_true")
+    turbo_group = ap.add_mutually_exclusive_group()
+    turbo_group.add_argument("--turbo", action="store_true", help="resident Whisper with audio prefetch and parallel translation")
+    turbo_group.add_argument("--no_turbo", dest="turbo", action="store_false", help="use ordinary sequential processing")
+    ap.add_argument("--audio_prefetch", type=positive_int, choices=range(1, 5), default=2)
     ap.add_argument("--stop_file", type=Path, help="stop before the next video when this file exists")
     ap.add_argument("--gui_events", action="store_true", help=argparse.SUPPRESS)
     retry_group = ap.add_mutually_exclusive_group()
@@ -677,6 +681,8 @@ def main():
     if inp.is_file() and inp.suffix.lower() not in VIDEO_EXTS | {".srt"}:
         ap.error(f"unsupported video extension: {inp.suffix or '(none)'}")
     needs_stt = inp.suffix.lower() != ".srt"
+    if args.turbo and needs_stt and args.stt_mode == "cloud":
+        ap.error("Turbo requires local Whisper; use --no_turbo for Cloud Speech")
     if needs_stt and args.stt_mode == "cloud":
         if not args.project or not args.bucket:
             ap.error("cloud speech requires --project and --bucket")
@@ -735,6 +741,9 @@ def gui_event(args, event, **fields):
 
 
 def run_batch(videos, args, script_dir, state_path, log_path, checkpoint_dir):
+    if getattr(args, "turbo", False) and not args.dry_run:
+        from turbo_scheduler import run_turbo
+        return run_turbo(videos, args, script_dir, state_path, log_path, checkpoint_dir)
     failures = completed = 0
     total = len(videos)
     def batch_log(event, **fields):

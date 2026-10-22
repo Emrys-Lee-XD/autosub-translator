@@ -37,6 +37,16 @@ class LocalAPI:
     def __enter__(self):
         fixture = self
         class Handler(BaseHTTPRequestHandler):
+            # HTTP/1.0 closes immediately after the response; on Windows that can
+            # reset an httpx connection before the response body is consumed.
+            protocol_version = "HTTP/1.1"
+
+            def handle(self):
+                try:
+                    super().handle()
+                except ConnectionResetError:
+                    pass  # Clients may close their idle keep-alive connection.
+
             def log_message(self, *_):
                 pass
 
@@ -337,7 +347,8 @@ class TranslationWorkflowTests(unittest.TestCase):
         def run(cmd, **kwargs):
             stages.append(cmd[1])
             if cmd[1] == "ffmpeg_only.py":
-                (Path(cmd[cmd.index("--out_dir") + 1]) / "sample.stt.wav").write_bytes(b"audio")
+                from tests.test_multilang import fixture_audio
+                fixture_audio(Path(cmd[cmd.index("--out_dir") + 1]) / "sample.stt.wav")
             elif cmd[1] == "sub.py":
                 Path(cmd[cmd.index("--out") + 1]).write_text(SRT, encoding="utf-8")
             else:

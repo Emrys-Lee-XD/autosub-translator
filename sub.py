@@ -171,83 +171,20 @@ def run_local_whisper_and_save(
     initial_prompt: str,
     source_language: str = "ja",
 ) -> None:
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError:
-        sys.exit("Error: faster-whisper not installed.")
+    from stt_engine import load_model, transcribe_one
+    config = dict(model_size=model_size, device=device, compute_type=compute_type,
+                  hallucination_filter=hallucination_filter,
+                  dedupe_window_seconds=dedupe_window_seconds,
+                  initial_prompt=initial_prompt, source_language=source_language)
+    print(f"   Loading Whisper ({model_size})...", flush=True)
+    model = load_model(config)
+    print("   Model loaded. Transcribing...", flush=True)
+    summary = transcribe_one(model, audio_path, out_path, config,
+        lambda data: print(f"   Recognized {data['seconds']:.1f}s / {data['duration']:.1f}s", flush=True))
+    print(f"   Transcribed {summary['segments']} segments. Language: {summary['language']}")
+    del model
+    gc.collect()
 
-    print(f"   Loading Whisper ({model_size})...", end="\r")
-    
-    try:
-        model = WhisperModel(model_size, device=device, compute_type=compute_type)
-        print(f"   {Log.GREEN}Model loaded.{Log.RESET} Transcribing...           ")
-        
-        transcribe_options = dict(
-            
-            # === VAD 设置 (既不漏，也不幻觉的关键) ===
-            vad_filter=True, # 开启 VAD，防止把静音当话语
-            vad_parameters=dict(
-                threshold=0.3,                # 默认0.5。调低到0.3，对“小声说话”更敏感 (防止漏)
-                min_speech_duration_ms=200,   # 哪怕只有0.2秒的声音也算
-                min_silence_duration_ms=500,  # 至少半秒静音才切断
-                speech_pad_ms=800             # 说话前后各留 0.8秒，防止“掐头去尾”
-            ),
-            
-            # === 解码参数 ===
-            beam_size=5,
-            word_timestamps=False,
-            condition_on_previous_text=False,
-        )
-        if source_language != "auto":
-            transcribe_options["language"] = source_language.split("-", 1)[0]
-        if initial_prompt:
-            transcribe_options["initial_prompt"] = initial_prompt
-        segments_gen, info = model.transcribe(audio_path, **transcribe_options)
-        print(f"   Detected language: {getattr(info, 'language', source_language)}")
-        
-        print(f"   [Debug] Audio Duration detected: {info.duration / 60:.1f} min")
-
-        results = []
-        filtered_hallucinations = 0
-        filtered_duplicates = 0
-        for i, seg in enumerate(segments_gen):
-            # === 实时清洗过滤器 ===
-            txt = seg.text.strip()
-            
-            if is_hallucination(txt, hallucination_filter):
-                filtered_hallucinations += 1
-                continue
-
-            if results and is_near_duplicate(results[-1], txt, seg.start, dedupe_window_seconds):
-                filtered_duplicates += 1
-                continue
-
-            results.append({"start": seg.start, "end": seg.end, "text": txt})
-            
-            ts = format_timestamp(seg.start).split(',')[0]
-            preview = txt[:40] + "..." if len(txt) > 40 else txt
-            print(f"   {Log.DIM}[{ts}]{Log.RESET} {preview:<50}", end="\r")
-            
-            if i % 50 == 0:
-                gc.collect()
-
-        print(f"\n   {Log.GREEN}Transcribed {len(results)} segments.{Log.RESET}")
-        print(
-            "   Filter summary: "
-            f"hallucination={filtered_hallucinations}, near_duplicate={filtered_duplicates}, "
-            f"mode={hallucination_filter}"
-        )
-        
-        # 存盘退出
-        write_srt(results, out_path)
-        
-        del model
-        gc.collect()
-
-    except Exception:
-        print(f"\n   {Log.RED}[Error] Whisper crashed:{Log.RESET}")
-        traceback.print_exc()
-        sys.exit(1)
 
 def positive_int(value: str) -> int:
     parsed = int(value)
