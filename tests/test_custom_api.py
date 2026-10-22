@@ -61,7 +61,7 @@ class LocalAPI:
                         self.send_header(key, value)
                     self.end_headers()
                     self.wfile.write(payload)
-                except (BrokenPipeError, ConnectionResetError):
+                except ConnectionError:
                     pass
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.server.daemon_threads = True
@@ -251,6 +251,19 @@ class HTTPProviderTests(unittest.TestCase):
             self.assertEqual(self.request(api, attempts=2), ["甲", "乙"])
             self.assertEqual(len(api.requests), 2)
 
+    def test_server_error_retries_with_non_utf8_library_log_stream(self):
+        def respond(body, lines, count):
+            return (503, {}, {}, 0) if count == 1 else (200, completion(["甲", "乙"]), {}, 0)
+        with LocalAPI(respond) as api:
+            buffer = io.BytesIO()
+            with io.TextIOWrapper(buffer, encoding="cp1252") as stream:
+                with contextlib.redirect_stdout(stream):
+                    result = self.request(api, attempts=2)
+                stream.flush()
+                self.assertIn(b"503", buffer.getvalue())
+            self.assertEqual(result, ["甲", "乙"])
+            self.assertEqual(len(api.requests), 2)
+
     def test_network_timeout_fails_after_bounded_attempts(self):
         def respond(*_):
             return 200, completion(["甲", "乙"]), {}, 0.15
@@ -306,7 +319,7 @@ class TranslationWorkflowTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(RuntimeError):
                 translate.main(argv)
             self.assertFalse(out.exists())
-            data = json.loads(checkpoint.read_text())
+            data = json.loads(checkpoint.read_text(encoding="utf-8"))
             self.assertEqual(data["translations"], ["译文 Hello world"])
             args = options(translation_provider="openai_compatible", api_base_url=api.url, model="local-model")
             self.assertEqual(data["translation_key"], translation_identity(args, translation_core.source_sha256(source)))

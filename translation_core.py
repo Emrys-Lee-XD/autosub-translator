@@ -20,6 +20,14 @@ class ResponseFormatError(RuntimeError):
     """A response did not contain exactly one usable translation per input."""
 
 
+def print_status(message):
+    """Logging must not interrupt retries in callers with a legacy text stream."""
+    encoding = getattr(sys.stdout, "encoding", None)
+    if encoding:
+        message = message.encode(encoding, errors="backslashreplace").decode(encoding)
+    print(message)
+
+
 def short_error(error):
     return redact(str(error).replace("\n", " ").strip())[:800] or type(error).__name__
 
@@ -92,7 +100,7 @@ def retry_translation(request, attempts, sleep_seconds):
                     or isinstance(exc, (PermissionError, ValueError, ImportError))):
                 raise
             if attempt < attempts:
-                print(f"\n   [warn] translation attempt {attempt}/{attempts} failed: {short_error(exc)}")
+                print_status(f"\n   [warn] translation attempt {attempt}/{attempts} failed: {short_error(exc)}")
                 delay = getattr(exc, "retry_after", None)
                 if delay is None:
                     response = getattr(exc, "response", None)
@@ -177,9 +185,9 @@ def run_translation(args, blocks, translate_batch, *, checkpoint_saver=save_chec
     input_hash = source_sha256(args.inp)
     key = translation_identity(args, input_hash)
     translations = load_checkpoint(path, len(lines), input_hash, args.model, key)
-    print(f"   Translating {len(lines)} lines in batches of {args.batch}...")
+    print_status(f"   Translating {len(lines)} lines in batches of {args.batch}...")
     if translations:
-        print(f"   Resuming translation from line {len(translations) + 1}/{len(lines)}...")
+        print_status(f"   Resuming translation from line {len(translations) + 1}/{len(lines)}...")
     while len(translations) < len(lines):
         index = len(translations)
         batch = lines[index:index + args.batch]
@@ -188,7 +196,7 @@ def run_translation(args, blocks, translate_batch, *, checkpoint_saver=save_chec
         except ResponseFormatError as exc:
             if len(batch) == 1:
                 raise RuntimeError(f"Unable to translate line {index + 1}: {short_error(exc)}; checkpoint preserved") from exc
-            print(f"\n   [warn] batch translation failed; retrying individual lines: {short_error(exc)}")
+            print_status(f"\n   [warn] batch translation failed; retrying individual lines: {short_error(exc)}")
             for line in batch:
                 translated = translate_batch([line])
                 translations.extend(translated)
@@ -204,7 +212,7 @@ def run_translation(args, blocks, translate_batch, *, checkpoint_saver=save_chec
         time.sleep(args.sleep)
     write_translated_srt(args.out, blocks, translations, args.source_language, args.target_language, args.output_mode)
     path.unlink(missing_ok=True)
-    print("\n   Translation finished.")
+    print_status("\n   Translation finished.")
 
 
 def positive_int(value):

@@ -51,13 +51,14 @@ CI 将包含 Python 3.12 和 3.13 的 Windows 任务；Python 3.12 远端任务�
 
 本次环境为 Debian 13、Python 3.12.14；GUI 通过 Xvfb 使用真实 Tk 事件循环。
 
-- 完整 102 项测试：101 项通过，1 项 Windows batch 启动器测试按平台跳过。
+- 完整 103 项测试：102 项通过，1 项 Windows batch 启动器测试按平台跳过。
 - 原有 Gemini 回归覆盖保留；另外使用官方 Google SDK 和模拟 HTTP 传输验证原生请求序列化、模型参数及译文解析，没有调用真实 Gemini 服务。
 - OpenAI 兼容接口使用本地 HTTP 服务验证真实请求路径、Bearer 认证、三种响应模式、429 / 503 / 超时处理、认证错误停止重试、无效译文拒绝、批量失败回退单条、检查点续跑与服务地址隔离。
 - 更换翻译服务地址时复用已生成的视频原文；GUI 服务切换、独立 Key、模型切换和单次 API 测试按钮通过真实事件循环验证。
 - Gemini 与自定义服务的 CLI 预演、`pip check`、源码编译和 `git diff --check` 通过。
 - 发布审查修复端口为 0 的地址被改为默认端口的问题，并将该输入加入地址校验回归测试。
 - 发布审查复现非 UTF-8 终端中的中文日志编码错误，统一 CLI 和翻译子进程输出编码，并用 `PYTHONIOENCODING=cp1252` 的真实 HTTP 翻译工作流验证修复。
+- Windows CI 进一步发现共享引擎的中文重试日志会受调用方输出编码影响，以及检查点测试未显式按 UTF-8 读取文件。已修复两处问题；新增非 UTF-8 日志流的真实 HTTP 重试回归测试，保留检查点内容及续跑断言。
 - 在临时源码目录构建包含新增模块的源码 ZIP；全部 61 个候选源码文件通过发布审查，ZIP 和逐文件清单哈希验证通过。
 
 随后环境发布并成功注入个人 `GEMINI_API_KEY`，完成以下真实服务验收；Key 仅通过运行环境使用，没有写入源码、配置或测试记录：
@@ -65,4 +66,4 @@ CI 将包含 Python 3.12 和 3.13 的 Windows 任务；Python 3.12 远端任务�
 - Gemini 原生接口：使用 `gemini-3.8-flash` 翻译公开 `examples/hello.en.srt` 的 2 条字幕，生成中英双语成品，核对条数、原文、时间轴及中文译文均正确。再次运行复用已核验成品。
 - OpenAI 兼容接口：使用同一 Gemini Key，显式指定 `custom_api_key_env=GEMINI_API_KEY`，通过官方 `https://generativelanguage.googleapis.com/v1beta/openai` 的 Chat Completions 端点和 `text` 响应模式再次翻译上述 2 条字幕。切换接口时正确备份原生成品，译文、时间轴及第二次运行的缓存复用均通过。
 
-上述验收只调用 Gemini 服务。其他供应商、OpenAI 兼容接口的真实 JSON Object / JSON Schema 模式仍以本地 HTTP 集成测试为证据。Windows、GPU 和实际模型下载不在本次验证范围。
+上述验收只调用 Gemini 服务。其他供应商、OpenAI 兼容接口的真实 JSON Object / JSON Schema 模式仍以本地 HTTP 集成测试为证据。Windows 自动化测试结果见发布 PR 的 CI 检查；GPU 和实际模型下载不在本次验证范围。
