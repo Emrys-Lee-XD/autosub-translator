@@ -14,10 +14,14 @@ import uuid
 from pathlib import Path
 from model_config import DEFAULT_MODEL, DEFAULT_LOCATION, LEGACY_DEFAULT_MODELS
 from language_config import LANGUAGES, language_tag
+from translation_config import (CUSTOM_KEY_ENV, PROVIDERS, RESPONSE_FORMATS, TranslationConfig,
+                                credential_environment, redact)
 
 ROOT = Path(__file__).resolve().parent
 SETTINGS_PATH = ROOT / "config.json"
 DEFAULTS = dict(input="", project="", model=DEFAULT_MODEL, api_key="",
+    translation_provider="gemini", api_base_url="", custom_api_key="", custom_api_key_env=CUSTOM_KEY_ENV,
+    response_format="text", request_timeout_seconds="60",
     gemini_backend="developer", source_language="auto", target_language="zh-CN",
     output_mode="bilingual", cloud_language_code="",
     stt_mode="local", device="auto", whisper_model="large-v3", compute_type="default",
@@ -26,10 +30,12 @@ DEFAULTS = dict(input="", project="", model=DEFAULT_MODEL, api_key="",
     hallucination_filter="off", dedupe_window_seconds="0.1", initial_prompt="",
     existing="reuse", keep_workspace=False)
 CHOICES = dict(stt_mode=("local", "cloud"), device=("auto", "cuda", "cpu"),
+    translation_provider=PROVIDERS, response_format=RESPONSE_FORMATS,
     hallucination_filter=("off", "conservative", "aggressive"), existing=("reuse", "force", "retry_no_text"),
     gemini_backend=("developer", "vertex"), source_language=("auto", *LANGUAGES),
     target_language=tuple(LANGUAGES), output_mode=("bilingual", "translated"))
 NUMBERS = {"batch": (int, 1, "每批翻译条数"), "sleep": (float, 0, "请求间隔"),
+    "request_timeout_seconds": (float, 0.001, "单次 API 超时"),
     "retries": (int, 1, "重试次数"), "translate_timeout_minutes": (int, 1, "翻译超时"),
     "stt_timeout_hours": (float, 0.000001, "云端识别超时"),
     "local_stt_timeout_minutes": (int, 0, "本地识别超时"),
@@ -58,6 +64,8 @@ def load_settings(path=SETTINGS_PATH):
         raise ValueError(f"{path.name} 的顶层必须是 JSON 对象。")
     for key, default in DEFAULTS.items():
         item = saved.get(key, default)
+        if key in ("translation_provider", "response_format") and item not in CHOICES[key]:
+            raise ValueError(f"无效选项：{key}")
         if key in ("source_language", "target_language"):
             values[key] = language_tag(item, allow_auto=key == "source_language")
             continue
@@ -65,8 +73,10 @@ def load_settings(path=SETTINGS_PATH):
             item = str(item)
         if isinstance(item, type(default)) and (key not in CHOICES or item in CHOICES[key]):
             values[key] = item
-    if values["model"] in LEGACY_DEFAULT_MODELS:
+    if values["translation_provider"] == "gemini" and values["model"] in LEGACY_DEFAULT_MODELS:
         values["model"] = DEFAULT_MODEL
+    if values["translation_provider"] != "gemini" and "model" not in saved:
+        values["model"] = ""
     return values
 
 
@@ -81,7 +91,12 @@ def save_settings(values, path=SETTINGS_PATH):
 
 
 def build_command(values, dry_run=False):
+    if values.get("translation_provider") == "openai_compatible" and "model" not in values:
+        values = {**values, "model": ""}
     values = {**DEFAULTS, **values}
+    config = TranslationConfig.from_values(values)
+    values["model"] = config.model
+    values["api_base_url"] = config.api_base_url
     raw = values["input"].strip().strip('"')
     if not raw:
         raise ValueError("请先选择视频文件或文件夹。")
@@ -92,9 +107,9 @@ def build_command(values, dry_run=False):
     if source.is_file() and source.suffix.lower() not in {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".m4v", ".webm", ".ts", ".srt"}:
         raise ValueError("请选择支持的视频、SRT 文件或视频文件夹。")
     required = [("model", "翻译模型")]
-    if values["gemini_backend"] == "vertex" or (values["stt_mode"] == "cloud" and not is_srt):
+    if config.vertex or (values["stt_mode"] == "cloud" and not is_srt):
         required.append(("project", "Google Cloud 项目 ID"))
-    if values["gemini_backend"] == "vertex":
+    if config.vertex:
         required.append(("location", "区域"))
     if values["stt_mode"] == "local" and not is_srt:
         required.extend((("whisper_model", "Whisper 模型"), ("compute_type", "计算精度")))
@@ -111,7 +126,7 @@ def build_command(values, dry_run=False):
         raise ValueError("云端识别需要填写 GCS 存储桶。")
     if values["stt_mode"] == "cloud" and not is_srt and values["source_language"] == "auto" and not values["cloud_language_code"].strip():
         raise ValueError("云端识别选自动语言时，请填写语音识别语言代码。")
-    active_numbers = {"batch", "sleep", "retries", "translate_timeout_minutes"}
+    active_numbers = {"batch", "sleep", "retries", "translate_timeout_minutes", "request_timeout_seconds"}
     if not is_srt:
         active_numbers |= ({"local_stt_timeout_minutes", "dedupe_window_seconds"}
                            if values["stt_mode"] == "local" else {"stt_timeout_hours"})
@@ -124,16 +139,20 @@ def build_command(values, dry_run=False):
         if not math.isfinite(parsed) or parsed < minimum:
             raise ValueError(f"{label}必须为有限数值，且不小于 {minimum:g}。")
     credential = values["credentials"].strip().strip('"')
-    if credential and (values["stt_mode"] == "cloud" and not is_srt or values["gemini_backend"] == "vertex") and not Path(credential).expanduser().is_file():
+    if credential and (values["stt_mode"] == "cloud" and not is_srt or config.vertex) and not Path(credential).expanduser().is_file():
         raise ValueError("所选凭据文件不存在。留空可使用系统已有凭据。")
     cmd = [python_executable(), "-u", str(ROOT / "main.py"), str(source), "--no_config"]
-    fields = ["model", "gemini_backend", "source_language", "target_language", "output_mode",
+    fields = ["model", "translation_provider", "source_language", "target_language", "output_mode",
               "stt_mode", *sorted(active_numbers)]
+    if config.provider == "gemini":
+        fields.append("gemini_backend")
+    else:
+        fields += ["api_base_url", "custom_api_key_env", "response_format"]
     if not is_srt and values["stt_mode"] == "local":
         fields += ["device", "whisper_model", "compute_type", "hallucination_filter"]
-    if values["gemini_backend"] == "vertex" or values["stt_mode"] == "cloud" and not is_srt:
+    if config.vertex or values["stt_mode"] == "cloud" and not is_srt:
         fields.append("project")
-    if values["gemini_backend"] == "vertex":
+    if config.vertex:
         fields.append("location")
     for name in fields:
         value = str(values[name]).strip()
@@ -152,17 +171,11 @@ def build_command(values, dry_run=False):
         cmd.append("--keep_workspace")
     if dry_run:
         cmd.append("--dry_run")
-    env = os.environ.copy()
+    env = credential_environment(config, values, override=True)
     env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1", AUTOSUB_GUI="1")
-    if values["gemini_backend"] == "developer":
-        env.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+    if config.provider == "gemini" and not config.vertex:
         env.pop("GOOGLE_CLOUD_PROJECT", None)
-        if values["api_key"].strip():
-            env["GEMINI_API_KEY"] = values["api_key"].strip()
-            env.pop("GOOGLE_API_KEY", None)
-        elif env.get("GEMINI_API_KEY"):
-            env.pop("GOOGLE_API_KEY", None)
-    if credential and (values["stt_mode"] == "cloud" and not is_srt or values["gemini_backend"] == "vertex"):
+    if credential and (values["stt_mode"] == "cloud" and not is_srt or config.vertex):
         env["GOOGLE_APPLICATION_CREDENTIALS"] = str(Path(credential).expanduser().resolve())
     return cmd, env
 
@@ -171,7 +184,8 @@ def environment_report(values):
     lines = [f"Python：{python_executable()}"]
     for name in ("ffmpeg", "ffprobe"):
         lines.append(f"{name}：" + (shutil.which(name) or "未找到"))
-    modules = ["google.genai"]
+    config = TranslationConfig.from_values(values)
+    modules = ["google.genai"] if config.provider == "gemini" else ["httpx"]
     is_srt = str(values["input"]).lower().endswith(".srt")
     if not is_srt:
         modules += ["faster_whisper"] if values["stt_mode"] == "local" else ["google.cloud.speech_v1", "google.cloud.storage"]
@@ -184,6 +198,32 @@ def environment_report(values):
     lines.append("检查仅确认本地组件；不会下载模型或调用云端服务。")
     lines.append("CUDA、项目权限及云端模型可用性需在实际处理时验证。")
     return "\n".join(lines)
+
+
+def test_translation(values):
+    """One real API request with a fixed public sentence; never includes media."""
+    values = {**DEFAULTS, **values}
+    config = TranslationConfig.from_values(values)
+    env = credential_environment(config, values, override=True)
+    config.validate_auth(env)
+    if config.vertex and values["credentials"].strip():
+        env["GOOGLE_APPLICATION_CREDENTIALS"] = str(Path(values["credentials"]).expanduser().resolve())
+    try:
+        timeout = float(values["request_timeout_seconds"])
+    except (ValueError, TypeError):
+        raise ValueError("单次 API 超时需要有效数值。") from None
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("单次 API 超时必须为正数。")
+    cmd = [python_executable(), "-u", str(ROOT / "translate.py"), "--test_connection",
+           *config.cli_arguments(), "--target_language", language_tag(values["target_language"]),
+           "--request_timeout_seconds", str(min(timeout, 30))]
+    flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    result = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", timeout=40, creationflags=flags)
+    output = redact((result.stdout + result.stderr).strip(), env)
+    if result.returncode:
+        raise RuntimeError(output or f"API 测试失败，退出码 {result.returncode}。")
+    return output
 
 
 class ProcessRunner:
@@ -221,10 +261,7 @@ class ProcessRunner:
                                   errors="replace", bufsize=1, creationflags=flags) as process:
                 for line in process.stdout:
                     line = ANSI.sub("", line).rstrip("\r\n")
-                    for key_name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-                        secret = env.get(key_name)
-                        if secret:
-                            line = line.replace(secret, "[REDACTED]")
+                    line = redact(line, env)
                     if line.startswith(EVENT_PREFIX):
                         try:
                             event = json.loads(line[len(EVENT_PREFIX):])

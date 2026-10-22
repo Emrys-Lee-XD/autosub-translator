@@ -82,7 +82,7 @@ class ReviewRegressionTests(unittest.TestCase):
                     (Path(cmd[cmd.index("--out_dir") + 1]) / "sample.stt.wav").write_bytes(b"wav")
                 elif cmd[1] == "sub.py":
                     Path(cmd[cmd.index("--out") + 1]).write_text(SRT, encoding="utf-8")
-                elif calls.count("gemini.py") == 1:
+                elif calls.count("translate.py") == 1:
                     raise RuntimeError("temporary translation failure")
                 else:
                     gemini.write_translated_srt(cmd[cmd.index("--out") + 1],
@@ -91,7 +91,7 @@ class ReviewRegressionTests(unittest.TestCase):
             with patch.object(pipeline.core, "run", side_effect=fake_run), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(pipeline.process_input(video, options(), ROOT, state, None, Path(tmp) / "checkpoints"), 1)
                 self.assertEqual(pipeline.process_input(video, options(), ROOT, state, None, Path(tmp) / "checkpoints"), 0)
-            self.assertEqual(calls, ["ffmpeg_only.py", "sub.py", "gemini.py", "gemini.py"])
+            self.assertEqual(calls, ["ffmpeg_only.py", "sub.py", "translate.py", "translate.py"])
 
     def test_force_ignores_cached_translation_and_old_checkpoint(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret"}):

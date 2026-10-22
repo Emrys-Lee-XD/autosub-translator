@@ -1,2 +1,3 @@
 google-genai>=1.60,<2
 protobuf>=6.33.5,<7
+-r requirements-openai.txt

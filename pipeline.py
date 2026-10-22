@@ -1,6 +1,5 @@
 """Source-aware video and SRT pipeline for the multilingual interface."""
 import hashlib
-import os
 import uuid
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import main as core
 from language_config import normalized_text, output_identity, output_path, source_path
 from language_config import stt_identity, translation_identity, SPEECH_CODES
 from srt_utils import read_srt
+from translation_config import TranslationConfig, redact
 
 
 def file_sha256(path):
@@ -73,6 +73,7 @@ def _save_status(state_path, source, **fields):
 
 
 def process_input(inp, args, script_dir, state_path, log_path, checkpoint_dir):
+    config = TranslationConfig.from_values(args)
     inp = Path(inp)
     is_srt = inp.suffix.lower() == ".srt"
     video_identity = {"source_sha256": file_sha256(inp)} if is_srt else core.video_identity(inp)
@@ -133,13 +134,16 @@ def process_input(inp, args, script_dir, state_path, log_path, checkpoint_dir):
         if not can_reuse_source and not is_srt:
             core.Log.step("Step 1/4: Audio Extraction (FFmpeg)")
             core.Log.step(f"Step 2/4: Speech-to-Text ({args.stt_mode.upper()})")
-        core.Log.step("Step 3/4: AI Translation (Gemini)")
+        core.Log.step(f"Step 3/4: AI Translation ({config.label})")
         core.Log.step("Step 4/4: Finalizing")
         return 0
 
-    if cached is None and args.gemini_backend == "developer" and not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
-        core.Log.error("Gemini API Key is missing. Enter it in the GUI or set GEMINI_API_KEY.")
-        return 1
+    if cached is None:
+        try:
+            config.validate_auth()
+        except ValueError as exc:
+            core.Log.error(str(exc))
+            return 1
 
     work_dir = core.prepare_workspace(inp)
     output_tmp = work_dir / f"{uuid.uuid4().hex}.translated.srt"
@@ -203,15 +207,14 @@ def process_input(inp, args, script_dir, state_path, log_path, checkpoint_dir):
         checkpoint = checkpoint_dir / f"{core.path_fingerprint(inp)}.{translation_key[:24]}.part.json"
         if args.force:
             checkpoint.unlink(missing_ok=True)
-        cmd = [core.sys.executable, "gemini.py", "--in", str(original), "--out", str(output_tmp),
-               "--backend", args.gemini_backend, "--model", args.model,
+        cmd = [core.sys.executable, "translate.py", "--in", str(original), "--out", str(output_tmp),
+               *config.cli_arguments(),
                "--source_language", args.source_language, "--target_language", args.target_language,
                "--output_mode", args.output_mode, "--checkpoint", str(checkpoint),
                "--batch", str(args.batch), "--sleep", str(args.sleep),
-               "--line_retries", str(args.retries)]
-        if args.gemini_backend == "vertex":
-            cmd.extend(["--project", args.project, "--location", args.location])
-        core.Log.step("Step 3/4: AI Translation (Gemini)")
+               "--line_retries", str(args.retries),
+               "--request_timeout_seconds", str(getattr(args, "request_timeout_seconds", 60))]
+        core.Log.step(f"Step 3/4: AI Translation ({config.label})")
         if cached is not None:
             render_translations(output_tmp, original, cached, args.source_language,
                                 args.target_language, args.output_mode)
@@ -237,7 +240,7 @@ def process_input(inp, args, script_dir, state_path, log_path, checkpoint_dir):
             core.cleanup_workspace(inp, work_dir)
         return 0
     except Exception as exc:
-        _save_status(state_path, inp, status="failed", error=str(exc),
+        _save_status(state_path, inp, status="failed", error=redact(exc),
                      video_identity=video_identity, stt_identity=stt_key)
-        core.Log.error(f"Failed: {exc}")
+        core.Log.error(f"Failed: {redact(exc)}")
         return 1

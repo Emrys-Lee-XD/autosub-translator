@@ -10,9 +10,61 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from gui import AutosubApp
+from tests.test_custom_api import LocalAPI
+from model_config import DEFAULT_MODEL
 
 
 class GuiSmokeTests(unittest.TestCase):
+    def test_provider_switch_keeps_separate_keys_and_models_and_loads_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = tk.Tk()
+            root.withdraw()
+            app = AutosubApp(root, settings_path=Path(tmp) / "settings.json")
+            try:
+                app.vars["api_key"].set("gemini-secret")
+                app.vars["translation_provider"].set("openai_compatible")
+                app._mode_changed()
+                self.assertEqual(app.vars["model"].get(), "")
+                self.assertTrue(app.fields["api_key"].instate(["disabled"]))
+                self.assertTrue(app.fields["api_base_url"].instate(["!disabled"]))
+                app.vars["custom_api_key"].set("custom-secret")
+                app.vars["api_base_url"].set("http://localhost:1234/v1")
+                app.vars["model"].set("local-model")
+                app.save()
+                app.vars["translation_provider"].set("gemini")
+                app._mode_changed()
+                self.assertEqual(app.vars["model"].get(), DEFAULT_MODEL)
+                self.assertEqual(app.vars["api_key"].get(), "gemini-secret")
+                self.assertTrue(app.fields["custom_api_key"].instate(["disabled"]))
+                app.load()
+                self.assertEqual(app.vars["translation_provider"].get(), "openai_compatible")
+                self.assertEqual(app.vars["model"].get(), "local-model")
+                self.assertEqual(app.vars["custom_api_key"].get(), "custom-secret")
+            finally:
+                root.destroy()
+
+    def test_api_button_completes_in_real_tk_event_loop(self):
+        with tempfile.TemporaryDirectory() as tmp, LocalAPI() as api:
+            root = tk.Tk()
+            root.withdraw()
+            app = AutosubApp(root, settings_path=Path(tmp) / "settings.json")
+            try:
+                app.vars["translation_provider"].set("openai_compatible")
+                app._mode_changed()
+                app.vars["api_base_url"].set(api.url)
+                app.vars["model"].set("local-model")
+                app.test_api()
+                self.assertTrue(app.checking)
+                deadline = time.monotonic() + 10
+                while app.checking and time.monotonic() < deadline:
+                    root.update()
+                    time.sleep(0.02)
+                self.assertFalse(app.checking)
+                self.assertIn("API 测试通过", app.status.get())
+                self.assertEqual(len(api.requests), 1)
+            finally:
+                root.destroy()
+
     def test_gui_saves_and_reloads_api_key_and_language(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.json"
