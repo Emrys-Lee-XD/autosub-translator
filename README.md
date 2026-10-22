@@ -1,8 +1,8 @@
 # Autosub 多语言字幕工作台
 
-将视频转写成字幕，再使用 Gemini 翻译；也可以直接翻译已有 SRT。提供中文桌面界面、命令行、源/目标语言选择、双语或纯译文输出、断点恢复和批量处理。
+将视频转写成字幕，再使用 Gemini 或自定义 OpenAI 兼容 API 翻译；也可以直接翻译已有 SRT。提供中文桌面界面、命令行、源/目标语言选择、双语或纯译文输出、断点恢复和批量处理。
 
-当前版本：**0.1.0-beta.1**，Windows 源码测试版。项目使用 AI 辅助开发，测试范围见 [验证记录](docs/VALIDATION.md)。
+当前版本：**0.2.0-beta.1**，Windows 源码测试版。项目使用 AI 辅助开发，测试范围见 [验证记录](docs/VALIDATION.md)。
 
 ## 安装与启动
 
@@ -18,7 +18,7 @@ Copy-Item config.json.example config.json
 
 复制配置只需做一次；已有个人配置时直接编辑它。安装系统 FFmpeg，并确认 `ffmpeg -version`、`ffprobe -version` 可运行。本项目使用外部 FFmpeg 提取视频音频。
 
-双击 `start_gui.bat`，输入你自己的 Google AI Studio API Key，选择素材与语言。点击“保存配置”记住设置；“预演”只检查处理流程，“开始生成”执行任务。源语言默认自动识别，目标语言默认简体中文。选中基本或高级页签后，文字和留白会放大。
+双击 `start_gui.bat`，选择翻译服务、素材与语言。在“翻译 API”填写对应服务的 Key 和地址，在高级参数填写翻译模型。Gemini 默认使用 Google AI Studio。点击“保存配置”记住设置；“预演”只检查处理流程，“开始生成”执行任务。“测试翻译”会发送一段固定公开文本，产生一次真实 API 请求。源语言默认自动识别，目标语言默认简体中文。
 
 首次本地识别会下载 Whisper 模型。没有显卡或希望先快速试用时，可选 CPU、`tiny` 模型、`int8` 精度；更大模型需要更多时间和内存。
 
@@ -28,8 +28,9 @@ Copy-Item config.json.example config.json
 
 | 任务 | 安装依赖 | 需要的配置 |
 |---|---|---|
-| 翻译已有 SRT | `requirements-core.txt` | Gemini API Key |
-| 本地视频识别与翻译 | `requirements-local.txt` | Gemini API Key；Whisper 模型和设备 |
+| Gemini 翻译已有 SRT | `requirements-core.txt` | Gemini API Key |
+| OpenAI 兼容 API 翻译已有 SRT | `requirements-openai.txt` | API 基础地址、模型、该服务的 Key（无认证本地服务可留空） |
+| 本地视频识别与翻译 | `requirements-local.txt` | 所选翻译服务配置；Whisper 模型和设备 |
 | Google Cloud Speech 识别与翻译 | `requirements-cloud.txt` | Key、Cloud Project、GCS bucket、Cloud 认证、识别语言 |
 | 全部功能 | `requirements.txt` | 根据实际任务填写 |
 
@@ -40,6 +41,10 @@ Copy-Item config.json.example config.json
 公开仓库只提供 `config.json.example`。`config.json` 是你本机的配置，含 Key 时是明文文件，请妥善保管。GUI 启动会加载它，“加载配置”重新读取，“保存配置”写回；未保存的界面修改也会用于当前任务。
 
 CLI 默认读取项目目录的 `config.json`；`--config other.json` 指定另一份配置，`--no_config` 使用内置默认值和命令行参数。命令行参数覆盖配置；`GEMINI_API_KEY` 环境变量优先于 CLI 配置里的 Key。Cloud 凭据也可由 `GOOGLE_APPLICATION_CREDENTIALS` 指定。
+
+自定义 API 使用 `translation_provider=openai_compatible`，并设置 `api_base_url`、`model`。地址填写到服务基础路径（例如 `https://example.com/v1`），不包含 `/chat/completions`。自定义 Key 独立保存在 `custom_api_key`，默认也可通过 `AUTOSUB_API_KEY` 提供；用 `custom_api_key_env` 更改变量名。CLI 优先读取环境变量，GUI 当前填写的 Key 优先于继承的变量。Gemini Key 不会自动用于自定义服务。旧配置继续按 Gemini 加载。
+
+完整配置、请求格式和本地服务示例见 [自定义 API 指南](docs/CUSTOM_API.md)。
 
 示例中所有 Key、项目、bucket 和凭据路径都为空。数字字段可用 JSON 数字或字符串；语言可使用预设列表或其他合法语言标签，如 `pt-BR`、`nl`。语言标签合法不保证识别服务或模型支持它。
 
@@ -63,11 +68,13 @@ CLI 默认读取项目目录的 `config.json`；`--config other.json` 指定另�
 
 程序按素材、识别参数、原文、翻译配置和成品哈希核验结果；参数改变后会备份已知旧成品再处理。来源未知的同名字幕会保留并报错，选择“备份后重做”或 `--force` 后重建。强制重做会绕过旧译文缓存和当前任务的翻译检查点。
 
+翻译缓存包含服务协议、API 地址、模型和响应格式；切换服务不会误用旧译文。此次更新升级了翻译身份标识，旧译文和检查点不直接复用；已核验原文仍可复用，已知旧成品会备份后重新翻译。
+
 翻译失败会保留可续跑的原文和检查点；重新运行同一任务即可继续。“重试无文字视频”用于重新识别此前没有文本的素材。停止按钮等待当前素材完成后停止。`--no_progress_log` 只关闭日志，保留恢复状态。
 
 ## 数据与费用
 
-字幕文本会发给所选 Gemini 服务。Google Cloud Speech 会把音频上传到所配 GCS bucket，并在识别操作后尝试删除临时对象；本地 Whisper 的识别在本机执行。服务费用、配额、模型权限由你自己的账户决定。Key、Cloud 凭据及包含私人素材信息的日志应留在本机。
+字幕文本会发给所选翻译服务，自定义 API 会接收字幕和为其配置的 Key。Google Cloud Speech 会把音频上传到所配 GCS bucket，并在识别操作后尝试删除临时对象；本地 Whisper 的识别在本机执行。服务费用、配额、模型权限由你自己的账户决定。Key、Cloud 凭据及包含私人素材信息的日志应留在本机。
 
 ## 开发与测试
 

@@ -1,6 +1,6 @@
-# 本地发布准备与人工发布
+# 版本发布流程
 
-版本：0.1.0-beta.1。源码包名称：`autosub-translator-0.1.0-beta.1-source.zip`。
+当前版本：0.2.0-beta.1。源码包名称：`autosub-translator-0.2.0-beta.1-source.zip`。
 
 ## 检查与打包
 
@@ -17,15 +17,16 @@ git add .
 
 检查 ZIP：只应包含公开源码、测试、依赖、文档、配置示例、MIT 许可证和公开样例；不能含 `.git`、`.venv`、个人 `config.json`、真实凭据或任务文件。解压到独立临时目录，再运行测试或预演。
 
-## 用户决定发布后
+## GitHub 发布
 
-1. 设置真实的 Git 作者姓名与邮箱，仅在需要时使用仓库级配置。
-2. 创建初始提交；确认暂存区与源码包一致。
-3. 在用户自己的 GitHub 账号下创建公开仓库，设置 `origin`，推送 `main`。
-4. 检查 Windows Actions 结果，并启用可用的 secret scanning、push protection、Dependabot alerts 和私密漏洞反馈。
-5. 为验证过的提交创建 `v0.1.0-beta.1` 标签；创建标记为预发布的 Release，使用 `docs/RELEASE_NOTES.md`，附上源码 ZIP 与 SHA-256。
+1. 核对现有 Git 作者配置，更新 `version.py`、README、更新记录和发布说明中的版本号。
+2. 在当前仓库创建发布分支并提交审核过的源码；确认源码包与该提交逐文件一致。
+3. 推送发布分支，创建指向 `main` 的 PR。主分支要求 PR 合并，不直接推送或绕过保护规则。
+4. 等待 Windows / Python 3.12、3.13 和锁定依赖检查通过，再合并 PR。保持可用的 secret scanning、push protection、Dependabot alerts 和私密漏洞反馈设置。
+5. 核对合并提交与待发布源码一致，为该提交创建 `v0.2.0-beta.1` 标签；使用 `docs/RELEASE_NOTES.md` 创建预发布 Release，附上源码 ZIP 与 SHA-256。
+6. 从 Release 下载附件，复核 ZIP、SHA-256、逐文件清单及标签对应的 Git 提交。
 
-这些步骤需要用户明确的发布指令。仓库不含自动推送、自动发布 Release 或上传包的脚本；CI 只做检查及本地打包。
+发布需要用户明确的发布指令。仓库不含自动推送、自动发布 Release 或上传包的脚本；CI 只做检查及本地打包。GitHub API 与附件上传分别需要访问 `api.github.com`、`uploads.github.com`。
 
 ## 许可证与贡献
 

@@ -54,7 +54,7 @@ def inspect_files(root, names):
             if isinstance(value, dict):
                 if value.get("type") == "service_account" or value.get("private_key"):
                     issues.append((name, "service account data"))
-                if any(value.get(key) for key in ("api_key", "credentials", "project", "bucket")):
+                if any(value.get(key) for key in ("api_key", "custom_api_key", "credentials", "project", "bucket")):
                     issues.append((name, "personal configuration"))
     return issues
 

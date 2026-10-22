@@ -10,7 +10,8 @@ from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
 
 from gui_support import (ROOT, DEFAULTS, SETTINGS_PATH, ProcessRunner, build_command,
-                         environment_report, load_settings, save_settings)
+                         environment_report, load_settings, save_settings, test_translation)
+from model_config import DEFAULT_MODEL
 from language_config import LANGUAGES
 from version import __version__
 
@@ -37,6 +38,8 @@ class AutosubApp:
             root.after_idle(lambda detail=str(exc): messagebox.showerror("配置读取失败", detail, parent=root))
         self.vars = {k: (tk.BooleanVar(root, value=v) if isinstance(v, bool) else tk.StringVar(root, value=v))
                      for k, v in values.items()}
+        self._active_provider = values["translation_provider"]
+        self._provider_models = {self._active_provider: values["model"]}
         self.status = tk.StringVar(root, value="准备就绪")
         self.detail = tk.StringVar(root, value="选择视频后，可先预演处理流程。")
         self.counter = tk.StringVar(root, value="0 / 0 个视频")
@@ -77,7 +80,7 @@ class AutosubApp:
         header.pack(fill="x")
         tk.Label(header, text="AUTOSUB", font=("Segoe UI", 12, "bold"), fg="#9ebeff", bg="#172b4a").pack(anchor="w")
         tk.Label(header, text="多语言字幕工作台", font=("Microsoft YaHei UI", 23, "bold"), fg="white", bg="#172b4a").pack(anchor="w", pady=(2, 2))
-        tk.Label(header, text="选择语言 · 本地或云端识别 · Gemini 翻译", fg="#c2cfe3", bg="#172b4a").pack(anchor="w")
+        tk.Label(header, text="选择语言 · 本地或云端识别 · Gemini / 自定义 API 翻译", fg="#c2cfe3", bg="#172b4a").pack(anchor="w")
         body = ttk.Frame(self.root, padding=(24, 14))
         body.pack(fill="both", expand=True)
         source = ttk.Frame(body)
@@ -97,19 +100,33 @@ class AutosubApp:
         self.notebook = notebook
         basic = ttk.Frame(notebook, padding=(12, 10))
         advanced = ttk.Frame(notebook, padding=(12, 10))
+        api = ttk.Frame(notebook, padding=(12, 10))
         notebook.add(basic, text="02  基本设置")
         notebook.add(advanced, text="高级参数")
-        for pane in (basic, advanced):
+        notebook.add(api, text="翻译 API")
+        for pane in (basic, advanced, api):
             pane.columnconfigure(1, weight=1)
             pane.columnconfigure(3, weight=1)
         advanced.columnconfigure(5, weight=1)
-        self._field(basic, 0, 0, "Gemini API Key", "api_key", secret=True)
+        self._field(basic, 0, 0, "翻译服务", "translation_provider",
+                    {"gemini": "Gemini 原生", "openai_compatible": "OpenAI 兼容 API"})
         self._field(basic, 0, 2, "原语言", "source_language", {"auto": "自动检测", **LANGUAGES})
         self._field(basic, 1, 0, "目标语言", "target_language", LANGUAGES)
         self._field(basic, 1, 2, "字幕格式", "output_mode", {"bilingual": "双语", "translated": "仅译文"})
         self._field(basic, 2, 0, "语音识别", "stt_mode", {"local": "本地 Whisper", "cloud": "Google 云端"})
         self._field(basic, 2, 2, "已有字幕", "existing", {"reuse": "保留并续跑", "force": "备份后重做", "retry_no_text": "重试无文字视频"})
-        ttk.Label(basic, text="API Key 会保存在本机 config.json，请勿分享此文件。", style="Muted.TLabel").grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 2))
+        ttk.Label(basic, text="在“翻译 API”填写地址和 Key，在高级参数填写翻译模型；可先预演流程。", style="Muted.TLabel").grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 2))
+        self._field(api, 0, 0, "Gemini API Key", "api_key", secret=True)
+        self._field(api, 0, 2, "自定义 API Key", "custom_api_key", secret=True)
+        self._field(api, 1, 0, "API 基础地址", "api_base_url")
+        self.fields["api_base_url"].grid(columnspan=3)
+        self._field(api, 2, 0, "Key 环境变量", "custom_api_key_env")
+        self._field(api, 2, 2, "响应格式", "response_format",
+                    {"text": "文本（提示词约束）", "json_object": "JSON Object", "json_schema": "JSON Schema"})
+        self._field(api, 3, 0, "单次超时 / 秒", "request_timeout_seconds")
+        self._button(api, "测试翻译（1 次 API 请求）", self.test_api).grid(row=3, column=2, columnspan=2, sticky="e")
+        ttk.Label(api, text="基础地址示例：https://example.com/v1；本地无认证服务可留空 Key。\n保存配置会将两个 Key 分别写入本机 config.json，请勿分享。",
+                  style="Muted.TLabel").grid(row=4, column=0, columnspan=4, sticky="w", pady=(8, 2))
         self._field(advanced, 0, 0, "翻译方式", "gemini_backend", {"developer": "AI Studio API Key", "vertex": "Vertex（高级）"})
         self._field(advanced, 0, 2, "翻译模型", "model")
         self._field(advanced, 0, 4, "运行设备", "device", {"auto": "自动选择", "cuda": "NVIDIA 显卡", "cpu": "CPU"})
@@ -204,13 +221,23 @@ class AutosubApp:
         local = self.vars["stt_mode"].get() == "local"
         srt = self.vars["input"].get().lower().endswith(".srt")
         cloud = not local and not srt
-        vertex = self.vars["gemini_backend"].get() == "vertex"
+        provider = self.vars["translation_provider"].get()
+        if provider != self._active_provider:
+            self._provider_models[self._active_provider] = self.vars["model"].get()
+            self.vars["model"].set(self._provider_models.get(provider, DEFAULT_MODEL if provider == "gemini" else ""))
+            self._active_provider = provider
+        gemini = provider == "gemini"
+        vertex = gemini and self.vars["gemini_backend"].get() == "vertex"
         self.fields["bucket"].configure(state="normal" if cloud else "disabled")
         self.fields["project"].configure(state="normal" if cloud or vertex else "disabled")
         self.fields["credentials"].configure(state="normal" if cloud or vertex else "disabled")
         self.fields["cloud_language_code"].configure(state="normal" if cloud else "disabled")
         self.fields["location"].configure(state="normal" if vertex else "disabled")
-        self.fields["api_key"].configure(state="disabled" if vertex else "normal")
+        self.fields["api_key"].configure(state="normal" if gemini and not vertex else "disabled")
+        self.fields["gemini_backend"].configure(state="readonly" if gemini else "disabled")
+        for name in ("api_base_url", "custom_api_key", "custom_api_key_env"):
+            self.fields[name].configure(state="disabled" if gemini else "normal")
+        self.fields["response_format"].configure(state="disabled" if gemini else "readonly")
         self.fields["device"].configure(state="readonly" if local and not srt else "disabled")
         self.fields["stt_mode"].configure(state="disabled" if srt else "readonly")
 
@@ -249,6 +276,8 @@ class AutosubApp:
             if not Path(self.settings_path).is_file():
                 raise FileNotFoundError(f"配置文件不存在：{self.settings_path}")
             values = load_settings(self.settings_path)
+            self._active_provider = values["translation_provider"]
+            self._provider_models[self._active_provider] = values["model"]
             for key, value in values.items():
                 self.vars[key].set(value)
             self._mode_changed()
@@ -323,6 +352,22 @@ class AutosubApp:
             self.ui_events.put(result)
         threading.Thread(target=worker, daemon=True).start()
 
+    def test_api(self):
+        if self.busy or self.checking:
+            return
+        self.checking = True
+        self.status.set("正在测试翻译 API")
+        values = self.values()
+        def worker():
+            try:
+                result = test_translation(values)
+                status = "API 测试通过"
+            except Exception as exc:
+                result = f"API 测试失败：{exc}"
+                status = "API 测试失败 · 详情见日志"
+            self.ui_events.put((status, result))
+        threading.Thread(target=worker, daemon=True).start()
+
     def _progress(self, data):
         event = data.get("event")
         if event == "batch_start":
@@ -374,9 +419,10 @@ class AutosubApp:
                     return
         try:
             report = self.ui_events.get_nowait()
-            self._log(report)
+            status, text = report if isinstance(report, tuple) else ("环境检查完成 · 详情见日志", report)
+            self._log(text)
             self.checking = False
-            self.status.set("环境检查完成 · 详情见日志")
+            self.status.set(status)
         except queue.Empty:
             pass
         if self.busy:

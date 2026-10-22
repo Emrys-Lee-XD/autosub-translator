@@ -94,7 +94,12 @@ class MultilingualTests(unittest.TestCase):
             with patch.object(sys, "argv", args), patch.object(gemini.genai, "Client") as client, \
                  patch.object(gemini, "translate_with_retries", return_value=["Ciao mondo"]):
                 gemini.main()
-            client.assert_called_once_with(vertexai=False, api_key="test-secret")
+            client.assert_called_once()
+            kwargs = client.call_args.kwargs
+            self.assertIs(kwargs["vertexai"], False)
+            self.assertEqual(kwargs["api_key"], "test-secret")
+            self.assertEqual(kwargs["http_options"].timeout, 60000)
+            self.assertEqual(kwargs["http_options"].retry_options.attempts, 1)
             self.assertIn("Ciao mondo", output.read_text(encoding="utf-8"))
 
     def test_authentication_error_is_not_retried(self):
@@ -135,7 +140,7 @@ class MultilingualTests(unittest.TestCase):
             calls = []
 
             def fake_run(cmd, **_):
-                self.assertEqual(cmd[1], "gemini.py")
+                self.assertEqual(cmd[1], "translate.py")
                 self.assertNotIn("test-secret", " ".join(cmd))
                 calls.append(cmd)
                 original = Path(cmd[cmd.index("--in") + 1])

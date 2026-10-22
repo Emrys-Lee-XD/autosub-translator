@@ -20,6 +20,8 @@ from batch_lock import batch_locks
 from model_config import DEFAULT_MODEL, DEFAULT_LOCATION
 from language_config import language_tag, output_path, source_path, SPEECH_CODES
 from version import __version__
+from translation_config import (PROVIDERS, RESPONSE_FORMATS, CUSTOM_KEY_ENV, TranslationConfig,
+                                credential_environment, redact)
 
 class Log:
     RESET = "\033[0m"
@@ -601,6 +603,11 @@ def main():
     ap.add_argument("--bucket")
     ap.add_argument("--project", default="")
     ap.add_argument("--gemini_backend", choices=["developer", "vertex"], default="developer")
+    ap.add_argument("--translation_provider", choices=PROVIDERS, default="gemini")
+    ap.add_argument("--api_base_url", default="")
+    ap.add_argument("--custom_api_key_env", default=CUSTOM_KEY_ENV)
+    ap.add_argument("--response_format", choices=RESPONSE_FORMATS, default="text")
+    ap.add_argument("--request_timeout_seconds", type=positive_float, default=60)
     ap.add_argument("--source_language", default="auto")
     ap.add_argument("--target_language", default="zh-CN")
     ap.add_argument("--output_mode", choices=["bilingual", "translated"], default="bilingual")
@@ -633,10 +640,19 @@ def main():
     ap.add_argument("--retries", type=positive_int, default=3)
 
     config_values = {key: value for key, value in config.items()
-                     if key not in {"api_key", "credentials", "existing", "keep_workspace"} and key in CONFIG_DEFAULTS}
+                     if key not in {"api_key", "custom_api_key", "credentials", "existing", "keep_workspace"} and key in CONFIG_DEFAULTS}
     ap.set_defaults(**config_values)
 
     args = ap.parse_args()
+    if (args.translation_provider != config["translation_provider"]
+            and not any(item == "--model" or item.startswith("--model=") for item in sys.argv[1:])):
+        args.model = "" if args.translation_provider != "gemini" else DEFAULT_MODEL
+    try:
+        translation = TranslationConfig.from_values(args)
+        args.model = translation.model
+        args.api_base_url = translation.api_base_url
+    except ValueError as exc:
+        ap.error(str(exc))
     if not args.input:
         ap.error("choose an input file or directory, or set input in config.json")
     if not args.force and not args.retry_no_text:
@@ -646,10 +662,7 @@ def main():
         args.keep_workspace = True
     if config["credentials"].strip() and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["credentials"].strip()
-    if args.gemini_backend == "developer" and config["api_key"].strip() and not os.environ.get("GEMINI_API_KEY"):
-        os.environ["GEMINI_API_KEY"] = config["api_key"].strip()
-        os.environ.pop("GOOGLE_API_KEY", None)
-        os.environ.pop("GOOGLE_GENAI_USE_VERTEXAI", None)
+    os.environ.update(credential_environment(translation, config))
     try:
         args.source_language = language_tag(args.source_language, allow_auto=True)
         args.target_language = language_tag(args.target_language)
@@ -671,8 +684,8 @@ def main():
         if not args.cloud_language_code:
             args.cloud_language_code = SPEECH_CODES.get(args.source_language, args.source_language)
         os.environ["GOOGLE_CLOUD_PROJECT"] = args.project
-    if args.gemini_backend == "vertex" and not args.project:
-        ap.error("Vertex translation requires --project")
+    if translation.vertex and (not args.project or not args.location):
+        ap.error("Vertex translation requires --project and --location")
     progress_root = inp if inp.is_dir() else inp.parent
     state_path = progress_root / ".autosub_state.json"
     log_path = progress_root / ".autosub_progress.jsonl"
@@ -746,7 +759,7 @@ def run_batch(videos, args, script_dir, state_path, log_path, checkpoint_dir):
                 result = process_one(video, args, script_dir, state_path, log_path, checkpoint_dir)
         except Exception as exc:
             # Includes failures before process_one's processing try block.
-            Log.error(f"Cannot process {video.name}: {exc}")
+            Log.error(f"Cannot process {video.name}: {redact(exc)}")
             result = 1
         completed += 1
         failures += int(result != 0)

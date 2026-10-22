@@ -16,6 +16,8 @@
 
 FFmpeg 来源与安装说明：[FFmpeg 官方下载页](https://ffmpeg.org/download.html)。
 
+仅通过自定义 OpenAI 兼容 API 翻译 SRT 时可安装 `requirements-openai.txt`，无需 Google SDK 或 FFmpeg；完整视频流程仍使用 `requirements-local.txt`。GUI 与 CLI 的服务地址、独立 Key 和模型配置见 [自定义 API 指南](CUSTOM_API.md)。
+
 ## CPU 与 NVIDIA GPU
 
 先使用 CPU 验证流程：`device=cpu`、`compute_type=int8`；短样例可用 `whisper_model=tiny`。GUI 在 CPU 选择下会把 float16 改为 int8。

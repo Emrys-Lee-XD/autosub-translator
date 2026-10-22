@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from model_config import DEFAULT_THINKING_LEVEL
+from translation_config import TranslationConfig
 
 LANGUAGES = {
     "ja": "日语", "en": "英语", "zh-CN": "简体中文", "zh-TW": "繁体中文",
@@ -12,7 +12,7 @@ LANGUAGES = {
 SPEECH_CODES = {"ja": "ja-JP", "en": "en-US", "zh-CN": "cmn-Hans-CN",
                 "zh-TW": "cmn-Hant-TW", "ko": "ko-KR", "fr": "fr-FR",
                 "de": "de-DE", "it": "it-IT", "es": "es-ES"}
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 OUTPUT_VERSION = 1
 
 
@@ -75,12 +75,10 @@ def stt_identity(args):
 
 
 def translation_identity(args, source_hash):
-    return identity({"version": 1, "prompt": PROMPT_VERSION, "source_sha256": source_hash,
+    return identity({"version": 2, "prompt": PROMPT_VERSION, "source_sha256": source_hash,
                      "source_language": getattr(args, "source_language", "auto"),
                      "target_language": getattr(args, "target_language", "zh-CN"),
-                     "backend": getattr(args, "gemini_backend", "developer"),
-                     "model": getattr(args, "model", ""),
-                     "thinking_level": DEFAULT_THINKING_LEVEL})
+                     **TranslationConfig.from_values(args).identity_fields()})
 
 
 def output_identity(args, source_hash):
