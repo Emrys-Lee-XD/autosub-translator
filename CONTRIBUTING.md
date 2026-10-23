@@ -5,6 +5,7 @@
 请使用可公开的短素材或人工 SRT 复现。提交前运行：
 
 ```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade "pip>=26.2.2,<27"
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m compileall -q .
@@ -23,6 +24,7 @@
 
 ```powershell
 py -3.13 -m venv .venv-deps-check
+.\.venv-deps-check\Scripts\python.exe -m pip install --upgrade "pip>=26.2.2,<27"
 .\.venv-deps-check\Scripts\python.exe -m pip install -r requirements-dev.txt -c constraints-windows-py313.txt
 .\.venv-deps-check\Scripts\python.exe -m pip check
 .\.venv-deps-check\Scripts\python.exe -m unittest discover -s tests -v

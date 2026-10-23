@@ -1,6 +1,10 @@
 # 安全与私人数据
 
-当前维护版本：0.2.0-beta.1。此源码测试版提供本地配置和用户自己的云服务接入。
+当前维护版本：0.2.0-beta.3。此源码测试版提供本地配置和用户自己的云服务接入。
+
+0.2.0-beta.3 修复 eMudhra 事件涉及的 Python 依赖信任：要求 `certifi>=2026.10.19`，Cloud Speech 要求 `grpcio` / `grpcio-status>=1.84.1`，安装引导使用 `pip>=26.2.2,<27`。0.2.0-beta.2 及更早版本的锁定文件包含受影响版本，请使用新版本的依赖文件升级已有虚拟环境。来源：[certifi 公告](https://github.com/advisories/GHSA-6q48-6c7w-9gw2)、[gRPC 1.84.1](https://github.com/grpc/grpc/releases/tag/v1.84.1)。
+
+CI 对锁定依赖执行漏洞审计，并用 `python scripts/check_ca_bundles.py` 检查 certifi、gRPC 和 pip 自带的实际 CA 包。该工具只读，可用 `--bundle PATH` 额外检查指定 PEM 文件。系统信任库、代理及环境变量指定的 CA 包由运行环境管理；升级 Python 包不会自动更新这些信任来源，程序不改写它们或关闭 TLS 验证。详情见[安装指南](docs/INSTALLATION.md)。
 
 `config.json` 明文保存 API Key。Cloud 服务账户文件、`.env`、私人字幕/视频和任务日志不应提交。公开仓库只包含空凭据的配置示例和人工创建的样例。
 

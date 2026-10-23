@@ -402,9 +402,11 @@ class TurboTests(unittest.TestCase):
         pid_file = self.root / "pid"
         code = ("import subprocess,sys,time; from pathlib import Path; "
                 "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
-                "Path(sys.argv[1]).write_text(str(p.pid)); time.sleep(60)")
+                "target=Path(sys.argv[1]); pending=target.with_suffix('.tmp'); "
+                "pending.write_text(str(p.pid)); pending.replace(target); time.sleep(60)")
         child = OwnedProcess([sys.executable, "-c", code, str(pid_file)], ROOT)
         try:
+            # The child publishes the file only after the complete PID is written.
             until = time.monotonic() + 5
             while not pid_file.exists() and time.monotonic() < until:
                 time.sleep(0.01)

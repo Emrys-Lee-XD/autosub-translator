@@ -1,6 +1,6 @@
 # 版本发布流程
 
-当前版本：0.2.0-beta.2。源码包名称：`autosub-translator-0.2.0-beta.2-source.zip`。
+当前版本：0.2.0-beta.3。源码包名称：`autosub-translator-0.2.0-beta.3-source.zip`。
 
 ## 检查与打包
 
@@ -8,6 +8,7 @@
 git status --short
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe scripts\check_ca_bundles.py
 git add .
 .\.venv\Scripts\python.exe scripts\release_audit.py
 .\.venv\Scripts\python.exe scripts\build_source_release.py
@@ -22,7 +23,7 @@ git add .
 1. 核对现有 Git 作者配置，更新 `version.py`、README、更新记录和发布说明中的版本号。
 2. 在当前仓库创建发布分支并提交审核过的源码；确认源码包与该提交逐文件一致。
 3. 推送发布分支，创建指向 `main` 的 PR。主分支要求 PR 合并，不直接推送或绕过保护规则。
-4. 等待 Windows / Python 3.12、3.13 和锁定依赖检查通过，再合并 PR。保持可用的 secret scanning、push protection、Dependabot alerts 和私密漏洞反馈设置。
+4. 等待 Windows / Python 3.12、3.13 、锁定依赖检查和 Dependency security 作业通过，再合并 PR。保持可用的 secret scanning、push protection、Dependabot alerts 和私密漏洞反馈设置。
 5. 主分支 push 的 Windows tests 完整通过后，`Publish source beta` 工作流检出该次测试的确切提交，重新审查并打包源码，创建版本标签及预发布 Release，附源码 ZIP 与 SHA-256。已有同名 Release 时跳过，不覆盖。
 6. 从 Release 下载附件，复核 ZIP、SHA-256、逐文件清单及标签对应的 Git 提交。
 

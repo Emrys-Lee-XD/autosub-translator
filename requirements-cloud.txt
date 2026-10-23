@@ -1,3 +1,6 @@
 -r requirements-core.txt
 google-cloud-storage>=3.8,<4
 google-cloud-speech>=2.36,<3
+# gRPC bundles its own CA roots, independently of certifi.
+grpcio>=1.84.1,<2
+grpcio-status>=1.84.1,<2
