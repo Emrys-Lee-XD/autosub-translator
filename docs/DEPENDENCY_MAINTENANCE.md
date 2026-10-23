@@ -1,5 +1,15 @@
 # 依赖维护记录
 
+## 2026-10-23：eMudhra CA 安全更新
+
+certifi 2026.7.22 命中 [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2)。共享翻译依赖入口明确要求 `certifi>=2026.10.19`，避免已有环境因传递依赖仍满足要求而停留在旧版本。Windows 锁定值同步更新。
+
+gRPC 使用独立 CA 包。已按 PyPI SHA-256 验证 Windows / CPython 3.13 的 1.84.0、1.84.1 wheel：前者含受影响根，后者已移除。`grpcio` / `grpcio-status` 配对升级到 1.84.1，保留 Protobuf 6.33.6 和现有 Google SDK 版本；[上游安全修复](https://github.com/grpc/grpc/pull/43700)没有在本次 PyPI 包漏洞扫描中被报出，因此 CI 另外检查安装包中的根证书。
+
+安装及 CI 引导使用 `pip>=26.2.2,<27`；[26.2.2](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst) 已内置 certifi 2026.10.19。扫描工具固定 pip-audit 2.10.1，与应用依赖分开安装；每次提交、PR 和每周对完整锁定文件查询公开安全公告。定时扫描不触发发布，main push 必须通过所有 Windows tests 作业（包括安全审计）后才进入发布流程。
+
+包内 CA 检查按真实 DER 指纹识别已知不安全根，使用受影响 G3 与未受影响 G1 的公开证书作回归输入。此检查不替代系统或代理信任库维护，也不能证明不存在未知漏洞。此次升级范围限定为 certifi、gRPC 及安装工具，不包含 PyAV 19、Protobuf 7、Google GenAI 2 等迁移。
+
 ## 2026-10-14：PR #10 协同迁移
 
 PR #10 的四项 Google 依赖升级均要求 `protobuf>=6.33.5`，不能与首发锁定的 Protobuf 5 共用。此次人工安排迁移，将核心依赖范围改为 `protobuf>=6.33.5,<7`，并锁定 `protobuf==6.33.6`；Protobuf 7 仍需另行验收。新增的传递依赖 `opentelemetry-api` 同步锁定到完整安装验证使用的 1.45.1。

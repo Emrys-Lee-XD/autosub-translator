@@ -1,15 +1,17 @@
-# 0.2.0-beta.2
+# 0.2.0-beta.3
 
-Autosub 合入 Turbo 批量处理，同时保留上一版的 Gemini 原生 / Vertex、自定义 OpenAI 兼容 API、独立 Key、响应格式及单次请求超时。
+本版修复 eMudhra 证书事件影响的 Python HTTPS 依赖，建议 0.2.0-beta.2 及更早版本用户更新源码及已有虚拟环境。
 
-- 本地 Whisper 在同一批次中常驻，配合单路音频预取与独立翻译队列。默认预取 2，可设为 1～4；公开配置默认关闭 Turbo。
-- GUI 增加 Turbo 开关、音频预取与三个阶段状态；安全停止等待当前阶段落盘，下次从已完成阶段继续。普通模式保留，Cloud Speech 继续使用普通流程。
-- 普通与 Turbo 共用翻译配置、缓存身份和字幕提交校验。切换服务或地址重新翻译，切换模式、轮换 Key 保留可复用结果。
-- 统一子进程错误码与自定义 Key 脱敏。鉴权、模型或重试耗尽的限流错误暂停后续翻译，识别可以继续；保留原文和检查点。
-- 修复 Tk 窗口销毁后的延迟回调，并保留子进程树清理、进程重启上限和音频完成证明。
+- 所有翻译入口要求 `certifi>=2026.10.19`，Windows 锁定版本同步更新。
+- Cloud Speech 使用的 `grpcio` / `grpcio-status` 更新到 1.84.1，修复 gRPC 独立证书库中的受影响根。
+- 安装与 CI 引导使用 pip 26.2.2 或更新的 26.x，更新 pip 内置 certifi 及已有安全修复。
+- CI 检查实际安装包的 CA 内容；新增针对受影响及未受影响 emSign 根、损坏证书包和只读诊断的回归测试。
+- 完整锁定依赖在提交、PR 和每周接受公开漏洞审计；发布等待包括安全作业在内的 Windows tests 全部通过。
 
-验证：Windows / Python 3.13.6 全部 136 项测试通过；干净安装的锁定依赖通过依赖检查。RTX 5080、Whisper large-v3 / float16 实际完成 3 个公开合成短视频，模型加载 1 次，普通模式复用成功；独立普通识别的原文与 Turbo 一致。Gemini 普通 / Turbo 均实际翻译了公开的 2 条字幕，核验时间轴、条数与原文通过。自定义 API 的三种响应模式、鉴权失败暂停和 Key 隔离通过本地 HTTP 与真实翻译子进程验证。详见 [验证记录](https://github.com/Emrys-Lee-XD/autosub-translator/blob/v0.2.0-beta.2/docs/VALIDATION.md)。
+升级时请使用新版依赖和锁定文件；仅替换源码不会更新已有虚拟环境。步骤见[安装指南](https://github.com/Emrys-Lee-XD/autosub-translator/blob/v0.2.0-beta.3/docs/INSTALLATION.md)。系统、代理或环境变量指定的自定义 CA 信任需要由对应环境维护，升级 Python 包不会改写这些证书库。证书诊断工具可只读检查额外 PEM 文件，TLS 验证保持开启。
 
-这是 Windows 源码预发布版，需要 Python、依赖和系统 FFmpeg。安装见 [README](https://github.com/Emrys-Lee-XD/autosub-translator/blob/v0.2.0-beta.2/README.md)。源码 ZIP 不含个人配置、Key、凭据、虚拟环境或私人媒体。
+此版继续提供 Turbo、Gemini 原生 / Vertex 和自定义 OpenAI 兼容 API。依赖升级范围限定为 certifi、gRPC 和 pip，验证记录见[依赖维护记录](https://github.com/Emrys-Lee-XD/autosub-translator/blob/v0.2.0-beta.3/docs/DEPENDENCY_MAINTENANCE.md)。
 
-长视频、持续大批量、多语种识别质量、其他 GPU、Cloud Speech、Vertex 及其他供应商的真实账户行为尚未全面验收。短样例结果不代表长视频性能承诺。
+上游依据：[certifi 安全公告](https://github.com/advisories/GHSA-6q48-6c7w-9gw2)、[gRPC 1.84.1](https://github.com/grpc/grpc/releases/tag/v1.84.1)、[pip 26.2.2](https://github.com/pypa/pip/blob/26.2.2/NEWS.rst)。
+
+这是 Windows 源码预发布版。源码 ZIP 和 SHA-256 由通过检查的提交生成，不包含个人配置、Key、凭据、虚拟环境或私人媒体。
