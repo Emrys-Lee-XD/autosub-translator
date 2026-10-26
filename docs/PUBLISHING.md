@@ -1,6 +1,6 @@
 # 版本发布流程
 
-当前版本：0.2.0-beta.3。源码包名称：`autosub-translator-0.2.0-beta.3-source.zip`。
+当前版本：0.2.0-beta.4。源码包名称：`autosub-translator-0.2.0-beta.4-source.zip`。
 
 ## 检查与打包
 

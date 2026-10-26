@@ -19,7 +19,7 @@ FFmpeg 来源与安装说明：[FFmpeg 官方下载页](https://ffmpeg.org/downl
 
 仅通过自定义 OpenAI 兼容 API 翻译 SRT 时可安装 `requirements-openai.txt`，无需 Google SDK 或 FFmpeg；完整视频流程仍使用 `requirements-local.txt`。GUI 与 CLI 的服务地址、独立 Key 和模型配置见 [自定义 API 指南](CUSTOM_API.md)。
 
-## 从 0.2.0-beta.2 或更早版本升级
+## 从 0.2.0-beta.3 或更早版本升级
 
 先下载新版源码，保留个人配置，再在新版项目目录运行：
 
@@ -36,7 +36,7 @@ FFmpeg 来源与安装说明：[FFmpeg 官方下载页](https://ffmpeg.org/downl
 .\.venv\Scripts\python.exe -m pip install --upgrade "grpcio>=1.84.1,<2" "grpcio-status>=1.84.1,<2" -c constraints-windows-py313.txt
 ```
 
-此版要求 certifi 2026.10.19 或更新版本，Cloud Speech 的 gRPC 1.84.1 或更新版本；pip 26.2.2 同时更新其内置 certifi。旧锁定文件会重新安装旧版本，升级时应使用新版文件。应用版本更新本身不会修改已有虚拟环境。
+此版的本地识别要求 filelock 4.2.1 或更新的 4.x，Windows 锁定到 4.2.4，以修复三条已知安全公告。继续要求 certifi 2026.10.19 或更新版本，Cloud Speech 的 gRPC 1.84.1 或更新版本；pip 26.2.2 同时更新其内置 certifi。旧锁定文件会重新安装旧版本，升级时应使用新版文件。应用版本更新本身不会修改已有虚拟环境。
 
 `check_ca_bundles.py` 按 SHA-256 指纹拒绝受 eMudhra 事件影响的 `emSign ECC Root CA - G3`，保留未受影响的 emSign 根。它检查已安装的包内 CA 文件，不修改任何证书。代理或环境变量（如 `SSL_CERT_FILE`、`SSL_CERT_DIR`、`REQUESTS_CA_BUNDLE`、`PIP_CERT`、`GRPC_DEFAULT_SSL_ROOTS_FILE_PATH`）指定的信任来源，以及 Windows 系统证书库，需要由对应环境管理者另行更新；仅升级 certifi 不能覆盖它们。可用 `python scripts/check_ca_bundles.py --bundle PATH` 只读检查额外 PEM 文件。保持 TLS 验证开启，不使用 `verify=False` 或 `--trusted-host` 绕过证书问题。
 

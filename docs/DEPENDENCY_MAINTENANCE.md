@@ -1,5 +1,15 @@
 # 依赖维护记录
 
+## 2026-10-26：filelock 安全更新
+
+每周安全扫描在 [Actions 40337646164](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/40337646164) 正确阻止了包含 `filelock==4.0.7` 的锁定依赖。重新查询全部 53 项锁定依赖，发现以下三条公告，首次修复版本均为 4.2.1：
+
+- [CVE-2026-112940 / GHSA-v4x8-3wr5-3wq8](https://github.com/advisories/GHSA-v4x8-3wr5-3wq8)：POSIX 的 SQLite 读写锁受共享目录中的符号链接和旁路文件影响。
+- [CVE-2026-112913 / GHSA-9vhv-jxww-xfm5](https://github.com/advisories/GHSA-9vhv-jxww-xfm5)：Windows 的 SQLite 读写锁会处理其他本地用户放置的旁路文件。
+- [CVE-2026-112907 / GHSA-567q-5qvw-pf92](https://github.com/advisories/GHSA-567q-5qvw-pf92)：Windows 软锁标记上的 oplock 可使获取锁超过超时时限。
+
+Windows 锁定到当前 4.x 修复版 4.2.4；`requirements-local.txt` 增加 `filelock>=4.2.1,<5`，避免已有环境的旧传递依赖仍被视为满足要求。filelock 由 Hugging Face 模型缓存使用，项目自己的批处理锁为独立实现。此次按受影响包升级，不声称已在本应用复现公告中的攻击。安全扫描继续保留全部失败条件，无漏洞忽略项。
+
 ## 2026-10-23：eMudhra CA 安全更新
 
 certifi 2026.7.22 命中 [GHSA-6q48-6c7w-9gw2](https://github.com/advisories/GHSA-6q48-6c7w-9gw2)。共享翻译依赖入口明确要求 `certifi>=2026.10.19`，避免已有环境因传递依赖仍满足要求而停留在旧版本。Windows 锁定值同步更新。

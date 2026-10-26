@@ -1,4 +1,6 @@
 -r requirements-core.txt
 faster-whisper>=1.2,<2
+# Hugging Face model-cache locks: CVE-2026-112940 / 112913 / 112907.
+filelock>=4.2.1,<5
 # faster-whisper 1.2.1 uses av.open(metadata_errors=...), removed in PyAV 19.
 av>=11,<19
