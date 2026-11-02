@@ -1,5 +1,11 @@
 # 更新记录
 
+## 0.2.0-beta.5 — 2026-11-02
+
+- 修复 pyasn1 0.6.4 命中的四条 ASN.1 解码资源耗尽公告，核心依赖最低版本和 Windows 锁定版本更新到 0.6.5。
+- 修正本月依赖更新的安装冲突：保留 Google GenAI 1.75.0 接受的 tenacity 9.1.4，暂缓该包普通次版本更新，保留补丁和安全更新资格。
+- 整合其余 19 项依赖更新，包括 Google Cloud、gRPC、Pydantic、CTranslate2、ONNX Runtime 和证书包；保留 Protobuf 6、PyAV 18 与现有 API 行为。
+
 ## 0.2.0-beta.4 — 2026-10-26
 
 - 修复每周依赖扫描发现的三条 filelock 公告：CVE-2026-112940、CVE-2026-112913、CVE-2026-112907。

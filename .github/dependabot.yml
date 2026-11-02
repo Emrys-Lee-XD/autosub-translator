@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 1
+    # google-genai 1.75.0 requires tenacity<9.2.0. Revisit with the next SDK update.
+    # Defer ordinary minor updates only; security updates and patches remain eligible.
+    ignore:
+      - dependency-name: tenacity
+        update-types: ["version-update:semver-minor"]
     # This filter applies only to version updates; security updates remain eligible.
     allow:
       - dependency-name: "*"
