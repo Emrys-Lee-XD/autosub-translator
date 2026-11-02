@@ -11,7 +11,9 @@
 
 核心安装入口明确要求 `pyasn1>=0.6.5,<0.7`，Windows 锁定到 0.6.5，使现有 Google 认证传递依赖也必须升级。仅使用 `requirements-openai.txt` 的最小自定义 API 安装不额外引入 ASN.1 依赖。不将公告中的资源耗尽攻击认定为已在本应用复现。
 
-本月 [Dependabot PR #15](https://github.com/Emrys-Lee-XD/autosub-translator/pull/15) 还将 tenacity 升到 9.2.1，但固定的 Google GenAI 1.75.0 元数据要求 `tenacity>=8.2.3,<9.2.0`，导致锁定安装失败。恢复 9.1.4，保留其余 19 项更新。Dependabot 仅暂缓 tenacity 的普通次版本更新；补丁和安全更新继续保留，SDK 接受新范围后应移除此规则。未关闭锁定依赖检查或忽略任何漏洞。
+本月 [Dependabot PR #15](https://github.com/Emrys-Lee-XD/autosub-translator/pull/15) 还将 tenacity 升到 9.2.1，但固定的 Google GenAI 1.75.0 元数据要求 `tenacity>=8.2.3,<9.2.0`，导致锁定安装失败。恢复 9.1.4，保留其余 17 项更新。Dependabot 仅暂缓 tenacity 的普通次版本更新；补丁和安全更新继续保留，SDK 接受新范围后应移除此规则。未关闭锁定依赖检查或忽略任何漏洞。
+
+新环境无法连接公开模型的下载 CDN，本轮未完成模型下载与完整 Whisper 推理验收，因此暂缓 CTranslate2 4.8.4 和 hf-xet 1.7.1 两项可选更新，保留已验证的 4.8.2 / 1.6.0。其余更新中的 ONNX Runtime / NumPy 使用包内 Silero VAD 和公开 WAV 进行实际推理验收；tokenizers 使用公开 tiny 分词器进行编码解码验收。GPU、长视频、Cloud Speech 和 Vertex 的真实服务不计入本轮验收范围。
 
 ## 2026-10-26：filelock 安全更新
 
