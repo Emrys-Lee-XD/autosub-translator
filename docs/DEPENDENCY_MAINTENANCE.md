@@ -1,5 +1,20 @@
 # 依赖维护记录
 
+## 2026-11-02：ASN.1 安全更新与月度依赖兼容性
+
+[每周安全扫描](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/41487145532)发现 pyasn1 0.6.4 命中四条 ASN.1 解码资源耗尽公告，首次修复版本均为 0.6.5：
+
+- [CVE-2026-119194 / GHSA-fm9c-5rcf-2q5p](https://github.com/advisories/GHSA-fm9c-5rcf-2q5p)：无 schema 解码中的长标签处理。
+- [CVE-2026-119195 / GHSA-9m75-vc3g-4x39](https://github.com/advisories/GHSA-9m75-vc3g-4x39)：分片 OCTET STRING、字符串和不定长容器处理。
+- [CVE-2026-119196 / GHSA-2qm8-x737-gmw5](https://github.com/advisories/GHSA-2qm8-x737-gmw5)：分片 BIT STRING 的重复移位和复制。
+- [CVE-2026-119197 / GHSA-mm57-4v3p-rchx](https://github.com/advisories/GHSA-mm57-4v3p-rchx)：大尾数 ASN.1 REAL 处理。
+
+核心安装入口明确要求 `pyasn1>=0.6.5,<0.7`，Windows 锁定到 0.6.5，使现有 Google 认证传递依赖也必须升级。仅使用 `requirements-openai.txt` 的最小自定义 API 安装不额外引入 ASN.1 依赖。不将公告中的资源耗尽攻击认定为已在本应用复现。
+
+本月 [Dependabot PR #15](https://github.com/Emrys-Lee-XD/autosub-translator/pull/15) 还将 tenacity 升到 9.2.1，但固定的 Google GenAI 1.75.0 元数据要求 `tenacity>=8.2.3,<9.2.0`，导致锁定安装失败。恢复 9.1.4，保留其余 17 项更新。Dependabot 仅暂缓 tenacity 的普通次版本更新；补丁和安全更新继续保留，SDK 接受新范围后应移除此规则。未关闭锁定依赖检查或忽略任何漏洞。
+
+新环境无法连接公开模型的下载 CDN，本轮未完成模型下载与完整 Whisper 推理验收，因此暂缓 CTranslate2 4.8.4 和 hf-xet 1.7.1 两项可选更新，保留已验证的 4.8.2 / 1.6.0。其余更新中的 ONNX Runtime / NumPy 使用包内 Silero VAD 和公开 WAV 进行实际推理验收；tokenizers 使用公开 tiny 分词器进行编码解码验收。GPU、长视频、Cloud Speech 和 Vertex 的真实服务不计入本轮验收范围。
+
 ## 2026-10-26：filelock 安全更新
 
 每周安全扫描在 [Actions 40337646164](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/40337646164) 正确阻止了包含 `filelock==4.0.7` 的锁定依赖。重新查询全部 53 项锁定依赖，发现以下三条公告，首次修复版本均为 4.2.1：

@@ -2,9 +2,9 @@
 
 将视频转写成字幕，再使用 Gemini 或自定义 OpenAI 兼容 API 翻译；也可以直接翻译已有 SRT。提供中文桌面界面、命令行、源/目标语言选择、双语或纯译文输出、断点恢复和批量处理。
 
-当前版本：**0.2.0-beta.4**，Windows 源码测试版。项目使用 AI 辅助开发，测试范围见 [验证记录](docs/VALIDATION.md)。
+当前版本：**0.2.0-beta.5**，Windows 源码测试版。项目使用 AI 辅助开发，测试范围见 [验证记录](docs/VALIDATION.md)。
 
-0.2.0-beta.4 更新模型缓存使用的 filelock，修复三条新公开的安全公告，并保留 beta.3 的 eMudhra 证书依赖修复。旧版本用户请按[升级说明](docs/INSTALLATION.md#从-020-beta3-或更早版本升级)更新已有虚拟环境。
+0.2.0-beta.5 修复 pyasn1 的四条新安全公告，并修正本月依赖更新中的 Google SDK / tenacity 安装冲突。继续保留已有 filelock 和证书修复。旧版本用户请按[升级说明](docs/INSTALLATION.md#从-020-beta4-或更早版本升级)更新已有虚拟环境。
 
 ## 安装与启动
 
