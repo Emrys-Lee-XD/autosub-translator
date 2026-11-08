@@ -11,7 +11,8 @@ from pathlib import Path
 
 from gui_support import (ROOT, DEFAULTS, SETTINGS_PATH, ProcessRunner, build_command,
                          environment_report, load_settings, save_settings, test_translation)
-from model_config import DEFAULT_MODEL
+from model_config import (DEFAULT_MODEL, RECOMMENDED_GEMINI_MODELS, RECOMMENDED_OPENAI_MODELS,
+                          RECOMMENDED_WHISPER_MODELS, RECOMMENDED_COMPUTE_TYPES)
 from language_config import LANGUAGES
 from version import __version__
 
@@ -34,6 +35,7 @@ class AutosubApp:
         self.mode_after = self.poll_after = self.error_after = None
         self.fields = {}
         self.controls = []
+        self._editable_comboboxes = set()
         try:
             values = load_settings(settings_path)
         except (OSError, ValueError) as exc:
@@ -159,7 +161,9 @@ class AutosubApp:
         ttk.Label(api, text="基础地址示例：https://example.com/v1；本地无认证服务可留空 Key。\n保存配置会将两个 Key 分别写入本机 config.json，请勿分享。",
                   style="Muted.TLabel").grid(row=4, column=0, columnspan=4, sticky="w", pady=(8, 2))
         self._field(advanced, 0, 0, "翻译方式", "gemini_backend", {"developer": "AI Studio API Key", "vertex": "Vertex（高级）"})
-        self._field(advanced, 0, 2, "翻译模型", "model")
+        model_sug = (RECOMMENDED_GEMINI_MODELS if self.vars["translation_provider"].get() == "gemini"
+                     else RECOMMENDED_OPENAI_MODELS)
+        self._field(advanced, 0, 2, "翻译模型", "model", suggestions=model_sug)
         self._field(advanced, 0, 4, "运行设备", "device", {"auto": "自动选择", "cuda": "NVIDIA 显卡", "cpu": "CPU"})
         self._field(advanced, 1, 0, "Cloud 项目 ID", "project")
         self._field(advanced, 1, 2, "GCS 存储桶", "bucket")
@@ -179,7 +183,9 @@ class AutosubApp:
             ("本地超时 / 分钟¹", "local_stt_timeout_minutes"), ("云端超时 / 小时", "stt_timeout_hours"),
             ("Vertex 区域", "location"), ("重复窗口 / 秒", "dedupe_window_seconds")]
         for i, (label, key) in enumerate(fields):
-            self._field(advanced, 4 + i // 3, (i % 3) * 2, label, key)
+            sug = (RECOMMENDED_WHISPER_MODELS if key == "whisper_model"
+                   else (RECOMMENDED_COMPUTE_TYPES if key == "compute_type" else None))
+            self._field(advanced, 4 + i // 3, (i % 3) * 2, label, key, suggestions=sug)
         self._field(advanced, 7, 2, "字幕过滤", "hallucination_filter", {"conservative": "保守", "off": "关闭", "aggressive": "较强"})
         self._field(advanced, 7, 0, "音频预取 / 1～4", "audio_prefetch")
         self._field(advanced, 7, 4, "识别提示", "initial_prompt")
@@ -198,7 +204,8 @@ class AutosubApp:
         self.preview_button.pack(side="left", padx=(0, 8))
         self._button(actions, "检查环境", self.check_environment).pack(side="left", padx=(0, 8))
         self._button(actions, "加载配置", self.load).pack(side="left", padx=(0, 8))
-        self._button(actions, "保存配置", self.save).pack(side="left")
+        self._button(actions, "保存配置", self.save).pack(side="left", padx=(0, 8))
+        self._button(actions, "使用手册", self.open_manual).pack(side="left")
         self.stop_button = ttk.Button(actions, text="完成当前视频后停止", command=self.stop, state="disabled")
         self.stop_button.pack(side="right")
         progress = ttk.Frame(body)
@@ -231,7 +238,7 @@ class AutosubApp:
         self.controls.append(widget)
         return widget
 
-    def _field(self, parent, row, col, label, key, choices=None, secret=False):
+    def _field(self, parent, row, col, label, key, choices=None, suggestions=None, secret=False):
         ttk.Label(parent, text=label).grid(row=row, column=col, sticky="w", padx=(0 if col == 0 else 20, 10), pady=4)
         if choices:
             choices = dict(choices)
@@ -248,6 +255,10 @@ class AutosubApp:
                 self.vars[key].set(next(k for k, v in choices.items() if v == display.get()))
                 self._mode_changed()
             widget.bind("<<ComboboxSelected>>", changed)
+        elif suggestions:
+            widget = ttk.Combobox(parent, textvariable=self.vars[key], values=list(suggestions), state="normal", width=22)
+            self._editable_comboboxes.add(widget)
+            widget.bind("<<ComboboxSelected>>", lambda _e: self._mode_changed())
         else:
             widget = ttk.Entry(parent, textvariable=self.vars[key], width=25, show="●" if secret else "")
         widget.grid(row=row, column=col + 1, sticky="ew", pady=4)
@@ -265,6 +276,9 @@ class AutosubApp:
             self._provider_models[self._active_provider] = self.vars["model"].get()
             self.vars["model"].set(self._provider_models.get(provider, DEFAULT_MODEL if provider == "gemini" else ""))
             self._active_provider = provider
+            if "model" in self.fields and isinstance(self.fields["model"], ttk.Combobox):
+                models = RECOMMENDED_GEMINI_MODELS if provider == "gemini" else RECOMMENDED_OPENAI_MODELS
+                self.fields["model"].configure(values=list(models))
         gemini = provider == "gemini"
         vertex = gemini and self.vars["gemini_backend"].get() == "vertex"
         if cloud:
@@ -332,9 +346,18 @@ class AutosubApp:
     def _set_busy(self, busy):
         self.busy = busy
         for widget in self.controls:
-            widget.configure(state="disabled" if busy else ("readonly" if isinstance(widget, ttk.Combobox) else "normal"))
+            is_editable = widget in getattr(self, "_editable_comboboxes", set())
+            default_state = "normal" if is_editable else ("readonly" if isinstance(widget, ttk.Combobox) else "normal")
+            widget.configure(state="disabled" if busy else default_state)
         self.stop_button.configure(state="normal" if busy else "disabled")
         self._mode_changed()
+
+    def open_manual(self):
+        try:
+            import manual
+            manual.main()
+        except Exception as exc:
+            messagebox.showerror("无法打开手册", str(exc), parent=self.root)
 
     def start(self, preview):
         if self.busy or self.checking:

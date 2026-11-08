@@ -2,18 +2,30 @@
 import re
 from pathlib import Path
 
-TIME = r"\d{2,}:[0-5]\d:[0-5]\d,\d{3}"
+TIME = r"\d{2,}:[0-5]\d:[0-5]\d[,.]\d{3}"
 HEADER = re.compile(rf"({TIME})\s*-->\s*({TIME})")
 
 
 def milliseconds(value):
+    value = str(value).replace(".", ",")
     hours, minutes, rest = value.split(":")
     seconds, millis = rest.split(",")
     return ((int(hours) * 60 + int(minutes)) * 60 + int(seconds)) * 1000 + int(millis)
 
 
+def read_srt_text(path):
+    raw = Path(path).read_bytes()
+    for encoding in ("utf-8-sig", "utf-8", "gb18030", "utf-16", "big5"):
+        try:
+            text = raw.decode(encoding)
+            return text.replace("\r\n", "\n").replace("\r", "\n").strip()
+        except (UnicodeDecodeError, LookupError):
+            continue
+    raise ValueError(f"Unable to decode subtitle file {path} with supported encodings.")
+
+
 def read_srt(path):
-    data = Path(path).read_text(encoding="utf-8-sig").strip()
+    data = read_srt_text(path)
     if not data:
         raise ValueError("Empty SRT")
     blocks = []
@@ -27,6 +39,8 @@ def read_srt(path):
         if not match or index <= previous_index:
             raise ValueError("Invalid SRT index or timestamp")
         start, end = match.groups()
+        start = start.replace(".", ",")
+        end = end.replace(".", ",")
         if milliseconds(end) <= milliseconds(start):
             raise ValueError("SRT end must be after start")
         text = "\n".join(lines[2:]).strip()
