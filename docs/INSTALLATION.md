@@ -44,7 +44,7 @@ FFmpeg 来源与安装说明：[FFmpeg 官方下载页](https://ffmpeg.org/downl
 
 ## CPU 与 NVIDIA GPU
 
-先使用 CPU 验证流程：`device=cpu`、`compute_type=int8`；短样例可用 `whisper_model=tiny`。GUI 在 CPU 选择下会把 float16 改为 int8。
+先使用 CPU 验证流程：`device=cpu`、`compute_type=int8`；短样例可用 `whisper_model=tiny`。选择 CPU，或设备设为自动且没有 CUDA 时，`float16` 会回退为 `int8`。
 
 faster-whisper 的推理后端是 CTranslate2。GPU 所需 NVIDIA 运行库和版本兼容性按 [faster-whisper 官方说明](https://github.com/SYSTRAN/faster-whisper#gpu)安装，目前其说明列出 CUDA 12 的 cuBLAS 和 cuDNN 9。不同 CTranslate2 版本的要求可能不同，不能用安装 torch 代替这一步。GPU 初始化失败时先切回 CPU，核对驱动、运行库与 PATH。
 

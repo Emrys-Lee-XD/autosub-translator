@@ -25,6 +25,7 @@ class GuiSmokeTests(unittest.TestCase):
                 app.vars["translation_provider"].set("openai_compatible")
                 app._mode_changed()
                 self.assertEqual(app.vars["model"].get(), "")
+                self.assertIn("gpt-4o-mini", app.fields["model"].cget("values"))
                 self.assertTrue(app.fields["api_key"].instate(["disabled"]))
                 self.assertTrue(app.fields["api_base_url"].instate(["!disabled"]))
                 app.vars["custom_api_key"].set("custom-secret")
@@ -34,12 +35,15 @@ class GuiSmokeTests(unittest.TestCase):
                 app.vars["translation_provider"].set("gemini")
                 app._mode_changed()
                 self.assertEqual(app.vars["model"].get(), DEFAULT_MODEL)
+                self.assertIn(DEFAULT_MODEL, app.fields["model"].cget("values"))
                 self.assertEqual(app.vars["api_key"].get(), "gemini-secret")
                 self.assertTrue(app.fields["custom_api_key"].instate(["disabled"]))
                 app.load()
                 self.assertEqual(app.vars["translation_provider"].get(), "openai_compatible")
                 self.assertEqual(app.vars["model"].get(), "local-model")
                 self.assertEqual(app.vars["custom_api_key"].get(), "custom-secret")
+                self.assertIn("gpt-4o-mini", app.fields["model"].cget("values"))
+                self.assertNotIn(DEFAULT_MODEL, app.fields["model"].cget("values"))
             finally:
                 root.destroy()
 
@@ -62,6 +66,46 @@ class GuiSmokeTests(unittest.TestCase):
                 self.assertFalse(app.checking)
                 self.assertIn("API 测试通过", app.status.get())
                 self.assertEqual(len(api.requests), 1)
+            finally:
+                root.destroy()
+
+    def test_srt_encoding_and_editable_model_controls_survive_save_and_busy(self):
+        import gui_support
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            source = folder / "source.srt"
+            source.write_bytes(("1\n00:00:00,000 --> 00:00:01,000\n中文\n").encode("big5"))
+            root = tk.Tk()
+            root.withdraw()
+            app = AutosubApp(root, settings_path=folder / "config.json")
+            try:
+                app.vars["input"].set(str(source))
+                app._mode_changed()
+                self.assertTrue(app.fields["srt_encoding"].instate(["readonly"]))
+                app.vars["srt_encoding"].set("big5")
+                app.vars["model"].set("custom-model-name")
+                app.vars["whisper_model"].set("large-v3-turbo")
+                app.save()
+                app.vars["srt_encoding"].set("auto")
+                app.vars["model"].set("other-model")
+                app.load()
+                self.assertEqual(app.vars["srt_encoding"].get(), "big5")
+                self.assertEqual(app.vars["model"].get(), "custom-model-name")
+                self.assertEqual(app.vars["whisper_model"].get(), "large-v3-turbo")
+                cmd, _ = gui_support.build_command(app.values(), dry_run=True)
+                self.assertIn("--srt_encoding=big5", cmd)
+                app._set_busy(True)
+                self.assertTrue(app.fields["model"].instate(["disabled"]))
+                app._set_busy(False)
+                self.assertTrue(app.fields["model"].instate(["!disabled", "!readonly"]))
+                self.assertEqual(app.vars["model"].get(), "custom-model-name")
+                video = folder / "video.mp4"
+                video.write_bytes(b"test")
+                app.vars["input"].set(str(video))
+                app._mode_changed()
+                self.assertTrue(app.fields["srt_encoding"].instate(["disabled"]))
+                cmd, _ = gui_support.build_command(app.values(), dry_run=True)
+                self.assertFalse(any(part.startswith("--srt_encoding") for part in cmd))
             finally:
                 root.destroy()
 

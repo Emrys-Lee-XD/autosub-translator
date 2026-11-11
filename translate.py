@@ -5,7 +5,7 @@ import os
 import sys
 
 from language_config import language_tag
-from srt_utils import read_srt
+from srt_utils import SRT_ENCODINGS, read_srt
 from translation_config import (CUSTOM_KEY_ENV, PROVIDERS, RESPONSE_FORMATS,
                                 TranslationConfig, configure_stdio, credential_environment)
 from translation_core import (non_negative_float, positive_int, retry_translation,
@@ -36,6 +36,7 @@ def main(argv=None, *, gemini_batch=None, checkpoint_saver=save_checkpoint):
     parser.add_argument("--location", default="global")
     parser.add_argument("--model", default="")
     parser.add_argument("--source_language", default="auto")
+    parser.add_argument("--srt_encoding", choices=SRT_ENCODINGS, default="auto")
     parser.add_argument("--target_language", default="zh-CN")
     parser.add_argument("--output_mode", choices=("bilingual", "translated"), default="bilingual")
     parser.add_argument("--batch", type=positive_int, default=20)
@@ -55,7 +56,7 @@ def main(argv=None, *, gemini_batch=None, checkpoint_saver=save_checkpoint):
         parser.error(str(exc))
     if not args.test_connection and (not args.inp or not args.out):
         parser.error("--in and --out are required unless --test_connection is used")
-    blocks = None if args.test_connection else read_srt(args.inp)
+    blocks = None if args.test_connection else read_srt(args.inp, encoding=args.srt_encoding)
     if blocks == []:
         parser.error("input SRT contains no subtitles")
     os.environ.update(credential_environment(config, {}))

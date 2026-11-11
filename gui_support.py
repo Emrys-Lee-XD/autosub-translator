@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 from model_config import DEFAULT_MODEL, DEFAULT_LOCATION, LEGACY_DEFAULT_MODELS
 from language_config import LANGUAGES, language_tag
+from srt_utils import SRT_ENCODINGS
 from translation_config import (CUSTOM_KEY_ENV, PROVIDERS, RESPONSE_FORMATS, TranslationConfig,
                                 credential_environment, redact)
 
@@ -22,7 +23,7 @@ SETTINGS_PATH = ROOT / "config.json"
 DEFAULTS = dict(input="", project="", model=DEFAULT_MODEL, api_key="",
     translation_provider="gemini", api_base_url="", custom_api_key="", custom_api_key_env=CUSTOM_KEY_ENV,
     response_format="text", request_timeout_seconds="60",
-    gemini_backend="developer", source_language="auto", target_language="zh-CN",
+    gemini_backend="developer", source_language="auto", target_language="zh-CN", srt_encoding="auto",
     output_mode="bilingual", cloud_language_code="",
     stt_mode="local", device="auto", whisper_model="large-v3", compute_type="default",
     location=DEFAULT_LOCATION, bucket="", credentials="", batch="20", sleep="1", retries="3",
@@ -33,7 +34,7 @@ CHOICES = dict(stt_mode=("local", "cloud"), device=("auto", "cuda", "cpu"),
     translation_provider=PROVIDERS, response_format=RESPONSE_FORMATS,
     hallucination_filter=("off", "conservative", "aggressive"), existing=("reuse", "force", "retry_no_text"),
     gemini_backend=("developer", "vertex"), source_language=("auto", *LANGUAGES),
-    target_language=tuple(LANGUAGES), output_mode=("bilingual", "translated"))
+    target_language=tuple(LANGUAGES), output_mode=("bilingual", "translated"), srt_encoding=SRT_ENCODINGS)
 NUMBERS = {"batch": (int, 1, "每批翻译条数"), "sleep": (float, 0, "请求间隔"),
     "request_timeout_seconds": (float, 0.001, "单次 API 超时"),
     "audio_prefetch": (int, 1, "音频预取数量"),
@@ -151,6 +152,8 @@ def build_command(values, dry_run=False):
     cmd = [python_executable(), "-u", str(ROOT / "main.py"), str(source), "--no_config"]
     fields = ["model", "translation_provider", "source_language", "target_language", "output_mode",
               "stt_mode", *sorted(active_numbers)]
+    if is_srt:
+        fields.append("srt_encoding")
     if config.provider == "gemini":
         fields.append("gemini_backend")
     else:

@@ -27,6 +27,8 @@ Copy-Item config.json.example config.json
 
 首次本地识别会下载 Whisper 模型。没有显卡或希望先快速试用时，可选 CPU、`tiny` 模型、`int8` 精度；更大模型需要更多时间和内存。
 
+高级参数提供可编辑的翻译模型、Whisper 模型和计算精度建议，包括 `large-v3-turbo`；仍可输入服务或运行环境支持的其他值。界面的“使用手册”会在浏览器中打开本说明。
+
 `constraints-windows-py313.txt` 记录本次 Windows/Python 3.13 已验证的依赖组合，只约束版本，不会额外安装云端或开发包。其他 Python 版本可以省略 `-c`，但需自行验证。
 
 ### 不同任务需要什么
@@ -63,6 +65,8 @@ CLI 默认读取项目目录的 `config.json`；`--config other.json` 指定另�
 ```
 
 文件夹入口递归处理视频；已有字幕用单个 SRT 入口翻译。公开示例和生成短测试视频的方法见 [examples](examples/README.md)。
+
+SRT 支持逗号或点作为毫秒分隔符。自动模式优先读取 UTF-8，支持带 BOM 的 UTF-16，并会在 GB18030 和 Big5 都能解码但内容不同时提示选择。已知字幕是 GB18030 或 Big5 时，建议直接指定编码：选中 SRT 后在“基本设置”的“SRT 编码”选择，或在命令行加 `--srt_encoding=gb18030` / `--srt_encoding=big5`；某些旧编码字节也可能恰好符合 UTF-8。无 BOM 的 UTF-16 可选择对应的 LE / BE；也可以先将原字幕转换为 UTF-8。原文件不会被改写。
 
 ## 输出与恢复
 

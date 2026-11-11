@@ -40,10 +40,12 @@ def main():
         if Path(cached) != Path(model_dir):
             raise RuntimeError("Local cache did not return the downloaded model")
 
-        config = {"model_size": model_dir, "device": "cpu", "compute_type": "int8",
+        config = {"model_size": model_dir, "device": "auto", "compute_type": "float16",
                   "source_language": "en", "hallucination_filter": "off"}
         model = load_model(config)
         try:
+            if model.model.device == "cpu" and model.model.compute_type != "int8":
+                raise RuntimeError("Automatic CPU selection did not fall back from float16 to int8")
             output = root / "demo.srt"
             summary = transcribe_one(model, ROOT / "examples" / "demo.en.wav", output, config)
             blocks = read_srt(output)
@@ -51,7 +53,7 @@ def main():
             if (summary["language"] != "en" or summary["segments"] != len(blocks)
                     or "hello" not in text or "test" not in text):
                 raise RuntimeError("The public audio did not produce the expected English subtitles")
-            print(f"PASS: hf-xet download and cache; CPU tiny transcription produced {len(blocks)} subtitles")
+            print(f"PASS: hf-xet download and cache; {model.model.device} tiny transcription produced {len(blocks)} subtitles")
         finally:
             del model
             gc.collect()

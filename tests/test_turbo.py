@@ -194,6 +194,24 @@ class TurboTests(unittest.TestCase):
                 stt_engine.load_model(config)
             self.assertEqual(loader.call_count, 1)
 
+    def test_auto_device_uses_cpu_compatible_precision_without_changing_cuda(self):
+        model_path = self.root / "model"
+        model_path.mkdir()
+        for device, cuda_count, expected_device, expected_type in (
+                ("auto", 0, "cpu", "int8"), ("auto", 1, "auto", "float16"),
+                ("cpu", 0, "cpu", "int8"), ("cuda", 0, "cuda", "float16")):
+            with self.subTest(device=device, cuda_count=cuda_count), \
+                    patch("ctranslate2.get_cuda_device_count", return_value=cuda_count), \
+                    patch("faster_whisper.WhisperModel", return_value=object()) as loader:
+                stt_engine.load_model(dict(model_size=str(model_path), device=device, compute_type="float16"))
+                self.assertEqual(loader.call_args.kwargs["compute_type"], expected_type)
+                self.assertEqual(loader.call_args.kwargs["device"], expected_device)
+        with patch("ctranslate2.get_cuda_device_count", side_effect=RuntimeError("no CUDA driver")), \
+                patch("faster_whisper.WhisperModel", return_value=object()) as loader:
+            stt_engine.load_model(dict(model_size=str(model_path), device="auto", compute_type="float16"))
+            self.assertEqual(loader.call_args.kwargs["compute_type"], "int8")
+            self.assertEqual(loader.call_args.kwargs["device"], "cpu")
+
     def test_safe_stop_preserves_stt_and_resume_does_not_repeat_it(self):
         paths = self.videos(3)
         stop = self.root / "stop"
