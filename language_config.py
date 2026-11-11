@@ -75,10 +75,14 @@ def stt_identity(args):
 
 
 def translation_identity(args, source_hash):
-    return identity({"version": 2, "prompt": PROMPT_VERSION, "source_sha256": source_hash,
-                     "source_language": getattr(args, "source_language", "auto"),
-                     "target_language": getattr(args, "target_language", "zh-CN"),
-                     **TranslationConfig.from_values(args).identity_fields()})
+    fields = {"version": 2, "prompt": PROMPT_VERSION, "source_sha256": source_hash,
+              "source_language": getattr(args, "source_language", "auto"),
+              "target_language": getattr(args, "target_language", "zh-CN"),
+              **TranslationConfig.from_values(args).identity_fields()}
+    encoding = getattr(args, "srt_encoding", "auto")
+    if encoding != "auto":
+        fields["srt_encoding"] = encoding
+    return identity(fields)
 
 
 def output_identity(args, source_hash):

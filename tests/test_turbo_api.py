@@ -21,6 +21,42 @@ from turbo_scheduler import TurboScheduler
 
 
 class TurboAPIIntegrationTests(unittest.TestCase):
+    def test_srt_encoding_is_respected_and_separates_cached_results(self):
+        for turbo in (False, True):
+            with self.subTest(turbo=turbo), tempfile.TemporaryDirectory() as tmp, LocalAPI() as api:
+                source = Path(tmp) / "source.srt"
+                original = ("1\n00:00:00.000 --> 00:00:01.000\n中文\n").encode("big5")
+                source.write_bytes(original)
+                output = source.with_name("source.zh-CN.bilingual.srt")
+                env = {k: v for k, v in os.environ.items() if k not in
+                       ("GEMINI_API_KEY", "GOOGLE_API_KEY", "AUTOSUB_API_KEY", "AUTOSUB_ACTIVE_KEY_ENV")}
+                base = [sys.executable, "main.py", str(source), "--no_config",
+                        "--turbo" if turbo else "--no_turbo", "--translation_provider", "openai_compatible",
+                        "--api_base_url", api.url, "--model", "local-model", "--sleep", "0"]
+
+                def execute(*extra):
+                    return subprocess.run([*base, *extra], cwd=ROOT, env=env, capture_output=True,
+                                          text=True, encoding="utf-8", timeout=30)
+
+                ambiguous = execute()
+                self.assertNotEqual(ambiguous.returncode, 0)
+                self.assertIn("字幕编码无法自动确定", ambiguous.stdout + ambiguous.stderr)
+                self.assertEqual(api.requests, [])
+                self.assertFalse(output.exists())
+
+                for _ in range(2):
+                    result = execute("--srt_encoding", "big5")
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(read_srt(output)[0][3].splitlines()[0], "中文")
+                self.assertEqual(len(api.requests), 1)
+
+                result = execute("--srt_encoding", "gb18030")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(read_srt(output)[0][3].splitlines()[0], "いゅ")
+                self.assertEqual(len(api.requests), 2)
+                self.assertEqual(len(list(Path(tmp).glob("*.backup.*.srt"))), 1)
+                self.assertEqual(source.read_bytes(), original)
+
     def test_custom_srt_all_response_modes_without_gemini_key_or_model(self):
         with tempfile.TemporaryDirectory() as tmp, LocalAPI() as api:
             for mode in ("text", "json_object", "json_schema"):

@@ -4,7 +4,7 @@
 import argparse
 import hashlib
 import math
-from srt_utils import read_srt
+from srt_utils import SRT_ENCODINGS, read_srt
 import json
 import re
 import shutil
@@ -610,6 +610,8 @@ def main():
     ap.add_argument("--response_format", choices=RESPONSE_FORMATS, default="text")
     ap.add_argument("--request_timeout_seconds", type=positive_float, default=60)
     ap.add_argument("--source_language", default="auto")
+    ap.add_argument("--srt_encoding", choices=SRT_ENCODINGS, default="auto",
+                    help="input SRT encoding; auto prefers UTF-8 and rejects ambiguous GB18030/Big5")
     ap.add_argument("--target_language", default="zh-CN")
     ap.add_argument("--output_mode", choices=["bilingual", "translated"], default="bilingual")
     ap.add_argument("--cloud_language_code", default="")

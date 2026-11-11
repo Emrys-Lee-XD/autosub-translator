@@ -12,6 +12,7 @@
   "gemini_backend": "developer",
   "source_language": "auto",
   "target_language": "zh-CN",
+  "srt_encoding": "auto",
   "output_mode": "bilingual",
   "cloud_language_code": "",
   "stt_mode": "local",

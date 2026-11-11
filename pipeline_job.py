@@ -11,6 +11,7 @@ from language_config import (identity, output_identity, output_path, source_path
                              stt_identity, translation_identity, SPEECH_CODES)
 from translation_config import TranslationConfig, redact
 from pipeline import file_sha256, source_ready, valid_translation, cached_translations, render_translations
+from srt_utils import read_srt
 
 
 def valid_audio(path):
@@ -34,6 +35,8 @@ class PipelineJob:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.job_id = core.path_fingerprint(self.inp)
         self.is_srt = self.inp.suffix.lower() == ".srt"
+        self.srt_encoding = getattr(self.args, "srt_encoding", "auto") if self.is_srt else "auto"
+        self.args.srt_encoding = self.srt_encoding
         self.video_id = self.input_identity()
         self.stt_key = None if self.is_srt else stt_identity(args)
         self.original = self.inp if self.is_srt else source_path(self.inp, args.source_language)
@@ -58,9 +61,13 @@ class PipelineJob:
     def prepare(self):
         args, state = self.args, self.state
         matches = state.get("video_identity") == self.video_id
-        valid = source_ready(self.original)
-        if self.is_srt and not valid:
-            raise RuntimeError(f"Input SRT is empty or invalid: {self.inp}")
+        if self.is_srt:
+            try:
+                valid = bool(read_srt(self.original, encoding=self.srt_encoding))
+            except (OSError, ValueError) as exc:
+                raise RuntimeError(f"输入 SRT 无法读取：{exc}") from exc
+        else:
+            valid = source_ready(self.original)
         self.source_hash = file_sha256(self.original) if valid else None
         # Recover an atomic source/output commit interrupted before its final state save.
         pending = state.get("source_pending", {})
@@ -91,7 +98,8 @@ class PipelineJob:
             if (matches and reusable and isinstance(record, dict) and
                     record.get("translation_identity") == key and record.get("output_identity") == render_key and
                     record.get("sha256") == file_sha256(self.output) and
-                    valid_translation(self.original, self.output, args.source_language, args.output_mode)):
+                    valid_translation(self.original, self.output, args.source_language, args.output_mode,
+                                      source_encoding=self.srt_encoding)):
                 self.phase = "complete"
                 if record is pending_output and not args.dry_run:
                     outputs = dict(records) if isinstance(records, dict) else {}
@@ -116,7 +124,8 @@ class PipelineJob:
             raise RuntimeError(f"Existing source subtitles are empty or invalid: {self.original}. Use --retry_no_text or --force.")
         if self.is_srt or (reusable and not args.force):
             self.phase = "source_ready"
-        self.cached = (cached_translations(state, self.original, self.output, key, args.source_language)
+        self.cached = (cached_translations(state, self.original, self.output, key, args.source_language,
+                                           source_encoding=self.srt_encoding)
                        if reusable and matches and not args.force else None)
         if not args.dry_run and self.cached is None:
             self.translation.validate_auth()
@@ -274,7 +283,8 @@ class PipelineJob:
             if (candidate.parent == self.work_dir and candidate.name.endswith(".translated.srt") and
                     pending.get("translation_identity") == self.translation_key and
                     pending.get("output_identity") == self.render_key and
-                    valid_translation(self.original, candidate, self.args.source_language, self.args.output_mode)):
+                    valid_translation(self.original, candidate, self.args.source_language, self.args.output_mode,
+                                      source_encoding=self.srt_encoding)):
                 self.output_tmp = candidate
                 self.translation_recovered = True
         if not self.translation_initialized and self.args.force:
@@ -294,7 +304,8 @@ class PipelineJob:
             return
         if self.cached is not None:
             render_translations(self.output_tmp, self.original, self.cached,
-                                args.source_language, args.target_language, args.output_mode)
+                                args.source_language, args.target_language, args.output_mode,
+                                source_encoding=self.srt_encoding)
         else:
             cmd = [core.sys.executable, "translate.py", "--in", str(self.original), "--out", str(self.output_tmp),
                    *self.translation.cli_arguments(), "--source_language", args.source_language,
@@ -302,13 +313,16 @@ class PipelineJob:
                    "--checkpoint", str(self.checkpoint), "--batch", str(args.batch), "--sleep", str(args.sleep),
                    "--line_retries", str(args.retries),
                    "--request_timeout_seconds", str(getattr(args, "request_timeout_seconds", 60))]
+            if self.srt_encoding != "auto":
+                cmd += ["--srt_encoding", self.srt_encoding]
             (runner or core.run)(cmd, cwd=self.script_dir, timeout_seconds=args.translate_timeout_minutes * 60)
 
     def finalize(self):
         self.ensure_unchanged()
         if file_sha256(self.original) != self.source_hash:
             raise RuntimeError("Source subtitles changed during translation")
-        if not valid_translation(self.original, self.output_tmp, self.args.source_language, self.args.output_mode):
+        if not valid_translation(self.original, self.output_tmp, self.args.source_language, self.args.output_mode,
+                                 source_encoding=self.srt_encoding):
             raise RuntimeError("Translated SRT does not match source timing/content")
         record = dict(path=str(self.output), translation_identity=self.translation_key,
                       output_identity=self.render_key, sha256=file_sha256(self.output_tmp))

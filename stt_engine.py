@@ -8,6 +8,19 @@ def load_model(config):
     from faster_whisper.utils import download_model
     from pathlib import Path
     options = dict(device=config["device"], compute_type=config["compute_type"])
+    if options["compute_type"] == "float16":
+        cpu = options["device"] == "cpu"
+        if options["device"] == "auto":
+            from ctranslate2 import get_cuda_device_count
+            try:
+                cpu = get_cuda_device_count() == 0
+            except (OSError, RuntimeError):
+                cpu = True
+        if cpu:
+            if options["device"] == "auto":
+                options["device"] = "cpu"
+            options["compute_type"] = "int8"
+            print("   CPU selected; using int8 instead of float16.")
     # A complete cached model should not wait on Hugging Face network checks.
     # Missing/incomplete caches retain the ordinary first-download behavior.
     from huggingface_hub.errors import LocalEntryNotFoundError

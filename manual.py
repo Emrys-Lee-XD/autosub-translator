@@ -17,7 +17,12 @@ def main():
                             encoding="utf-8", delete=False) as file:
         file.write(page)
         path = Path(file.name)
-    webbrowser.open(path.as_uri())
+    try:
+        if not webbrowser.open(path.as_uri()):
+            raise RuntimeError("无法启动浏览器，请检查系统默认浏览器设置。")
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
 
 
 if __name__ == "__main__":

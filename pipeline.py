@@ -15,9 +15,9 @@ def file_sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def valid_translation(source, output, source_language, mode):
+def valid_translation(source, output, source_language, mode, *, source_encoding="auto"):
     try:
-        originals, result = read_srt(source), read_srt(output)
+        originals, result = read_srt(source, encoding=source_encoding), read_srt(output)
     except (OSError, ValueError):
         return False
     if len(originals) != len(result):
@@ -41,7 +41,7 @@ def source_ready(path):
         return False
 
 
-def cached_translations(state, source, desired_output, translation_key, source_language):
+def cached_translations(state, source, desired_output, translation_key, source_language, *, source_encoding="auto"):
     records = state.get("outputs", {}) if isinstance(state.get("outputs"), dict) else {}
     for raw_path, record in records.items():
         candidate = Path(raw_path)
@@ -50,15 +50,15 @@ def cached_translations(state, source, desired_output, translation_key, source_l
         if not candidate.is_file() or record.get("sha256") != file_sha256(candidate):
             continue
         mode = "bilingual" if candidate.name.endswith(".bilingual.srt") else "translated"
-        if not valid_translation(source, candidate, source_language, mode):
+        if not valid_translation(source, candidate, source_language, mode, source_encoding=source_encoding):
             continue
         blocks = read_srt(candidate)
         return [block[3].splitlines()[1] if mode == "bilingual" else block[3] for block in blocks]
     return None
 
 
-def render_translations(path, source, translations, source_language, target_language, mode):
-    blocks = read_srt(source)
+def render_translations(path, source, translations, source_language, target_language, mode, *, source_encoding="auto"):
+    blocks = read_srt(source, encoding=source_encoding)
     if len(blocks) != len(translations):
         raise RuntimeError("Cached translation count mismatch")
     with Path(path).open("w", encoding="utf-8") as stream:
