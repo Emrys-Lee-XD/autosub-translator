@@ -110,3 +110,5 @@ Windows PR 检查发现该测试还有 PID 文件的读写竞争：文件刚创�
 - 使用用户已有 Gemini 凭据翻译人工创建的 Big5 短字幕，核对原文、时间轴和英文译文；再次执行保留原有成品。密钥仅通过进程环境使用。`gemini-3.8-flash`、`gemini-3.7-flash`、`gemini-3.5-flash-lite` 和 `gemini-3.1-pro-preview` 的实际短句翻译通过。Gemini 1.5 元数据返回 404；2.5 虽可查询元数据，实际生成请求对当前账户返回“不再向新用户开放”的 404，均已从建议列表移除。旧账户若仍有权限，可继续手动输入 2.5 模型名。
 - 对设备自动选择和 CPU / CUDA、`float16` 选项进行回归检查：未检测到 CUDA 时使用 CPU / int8，显式 CUDA 或可用 CUDA 时保留 float16。
 - 功能整合时 Linux 容器完整 156 项测试为 154 项通过、1 项 Windows 启动器跳过、1 项既有僵尸进程断言失败；后者已在 0.2.0-beta.3 记录中说明。GPU、`large-v3-turbo` 实际模型下载、Vertex 和真实第三方供应商未在本轮验收。Windows / Python 3.12、3.13、锁定 3.13 与依赖安全检查须全部通过后合并。
+
+合并后的 [Windows 主分支检查](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/43048294705)中，Python 3.12、3.13 和锁定依赖 3.13 各通过 157 项测试，依赖安全及包内 CA 检查通过。[手动 Windows 识别检查](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/43046650142)通过公开 tiny 模型的下载、缓存和 CPU 识别。以上真实模型及 Gemini 测试使用短样例，不能代表长视频效果。
