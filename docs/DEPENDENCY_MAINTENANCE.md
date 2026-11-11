@@ -1,5 +1,11 @@
 # 依赖维护记录
 
+## 2026-11-11：本地识别运行库与 gRPC 更新
+
+Windows 锁定依赖将 CTranslate2 从 4.8.2 更新到 4.8.4、hf-xet 从 1.6.0 更新到 1.8.0，grpcio 和 grpcio-status 更新到 1.85.1。保留 pyasn1、filelock、certifi 和 pip 的安全要求，以及依赖审计与包内 CA 检查。
+
+此前受下载网络限制而暂缓的本地识别依赖已完成 [Windows 手动验收](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/43046650142)：通过 hf-xet 下载并复用公开 tiny 模型，使用自动设备选择、CPU 的 int8 路径识别公开短音频，生成有效 SRT。该手动作业按需运行，不随普通提交、PR 或定时检查下载模型。GPU 和 `large-v3-turbo` 权重未在本轮验证。
+
 ## 2026-11-02：ASN.1 安全更新与月度依赖兼容性
 
 [每周安全扫描](https://github.com/Emrys-Lee-XD/autosub-translator/actions/runs/41487145532)发现 pyasn1 0.6.4 命中四条 ASN.1 解码资源耗尽公告，首次修复版本均为 0.6.5：
