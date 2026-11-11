@@ -11,6 +11,23 @@ permissions:
   contents: read
 
 jobs:
+  model-smoke:
+    if: github.event_name == 'workflow_dispatch'
+    name: Public model download and CPU STT
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade "pip>=26.2.2,<27"
+      - run: python -m pip install -r requirements-local.txt -c constraints-windows-py313.txt
+      - run: python -m pip check
+      - run: python scripts/validate_whisper_model.py
+
   test:
     if: github.event_name != 'schedule'
     runs-on: windows-latest
