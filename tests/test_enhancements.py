@@ -91,12 +91,23 @@ class ModelConfigEnhancementTests(unittest.TestCase):
         self.assertIn("large-v3-turbo", RECOMMENDED_WHISPER_MODELS)
         self.assertIn("large-v3", RECOMMENDED_WHISPER_MODELS)
         self.assertIn("gemini-3.8-flash", RECOMMENDED_GEMINI_MODELS)
-        self.assertIn("gemini-2.5-flash", RECOMMENDED_GEMINI_MODELS)
+        self.assertIn("gemini-3.7-flash", RECOMMENDED_GEMINI_MODELS)
+        self.assertIn("gemini-3.5-flash-lite", RECOMMENDED_GEMINI_MODELS)
+        self.assertIn("gemini-3.1-pro-preview", RECOMMENDED_GEMINI_MODELS)
         self.assertIn("gpt-4o-mini", RECOMMENDED_OPENAI_MODELS)
         self.assertIn("float16", RECOMMENDED_COMPUTE_TYPES)
         self.assertIn("int8", RECOMMENDED_COMPUTE_TYPES)
         self.assertNotIn("gemini-1.5-flash", RECOMMENDED_GEMINI_MODELS)
         self.assertNotIn("gemini-1.5-pro", RECOMMENDED_GEMINI_MODELS)
+        self.assertNotIn("gemini-2.5-flash", RECOMMENDED_GEMINI_MODELS)
+        self.assertNotIn("gemini-2.5-pro", RECOMMENDED_GEMINI_MODELS)
+
+    def test_existing_unlisted_model_remains_available_as_custom_value(self):
+        import gui_support
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text('{"model":"gemini-2.5-pro"}', encoding="utf-8")
+            self.assertEqual(gui_support.load_settings(path)["model"], "gemini-2.5-pro")
 
     def test_default_encoding_preserves_existing_translation_identity(self):
         args = SimpleNamespace(model="test-model")
